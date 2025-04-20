@@ -1,0 +1,121 @@
+.markdown-preview h1 {
+  font-size: 1.75rem;
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.markdown-preview h2 {
+  font-size: 1.5rem;
+  margin-top: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.markdown-preview h3 {
+  font-size: 1.25rem;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.markdown-preview pre {
+  background-color: #f5f5f5;
+  padding: 1rem;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+.markdown-preview code {
+  font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 0.1em 0.2em;
+  border-radius: 3px;
+}
+
+.markdown-preview pre code {
+  background-color: transparent;
+  padding: 0;
+}
+
+.markdown-preview table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0;
+}
+
+.markdown-preview th,
+.markdown-preview td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+
+.markdown-preview th {
+  background-color: #f2f2f2;
+}
+
+.markdown-preview blockquote {
+  border-left: 4px solid #ddd;
+  padding-left: 1rem;
+  margin-left: 0;
+  color: #666;
+}
+
+.markdown-preview img {
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown-preview p {
+  margin-bottom: 1rem;
+}
+
+.markdown-preview ul,
+.markdown-preview ol {
+  margin-bottom: 1rem;
+  padding-left: 2rem;
+}
+
+/* 自定义Markdown编辑器样式 */
+.w-md-editor-toolbar li.active > button {
+  color: #1976d2;
+}
+
+.w-md-editor-toolbar li > button:hover {
+  color: #1976d2;
+}
+
+.md-editor-error .w-md-editor-toolbar {
+  border-color: #d32f2f;
+}
+
+.md-editor-error .w-md-editor-content {
+  border-color: #d32f2f;
+}
+
+/* 表格单元格中的Markdown样式 */
+.table-cell-markdown .markdown-preview {
+  padding: 0;
+  background-color: transparent;
+  /* 确保表格单元格中的内容不会换行 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.table-cell-markdown p {
+  margin: 0;
+  padding: 0;
+}
+
+/* 确保表格单元格中的markdown内容不会超出单元格 */
+.table-cell-markdown h1,
+.table-cell-markdown h2,
+.table-cell-markdown h3,
+.table-cell-markdown h4,
+.table-cell-markdown h5,
+.table-cell-markdown h6 {
+  font-size: inherit;
+  margin: 0;
+  padding: 0;
+  font-weight: normal;
+  display: inline;
+} 
