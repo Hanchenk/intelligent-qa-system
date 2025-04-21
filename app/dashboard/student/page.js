@@ -103,6 +103,9 @@ export default function StudentDashboard() {
                   <Link href="/dashboard/student/exams" className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700">
                     我的考试
                   </Link>
+                  <Link href="/discussions" className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700">
+                    讨论区
+                  </Link>
                   <Link href="/dashboard/profile" className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700">
                     个人中心
                   </Link>
@@ -124,6 +127,27 @@ export default function StudentDashboard() {
             </div>
           </div>
         </nav>
+
+        {/* 移动端菜单 */}
+        <div className="sm:hidden">
+          <div className="pt-2 pb-3 space-y-1">
+            <Link href="/dashboard/student" className="block px-3 py-2 rounded-md text-base font-medium text-blue-700 bg-blue-50 dark:text-blue-300 dark:bg-blue-900">
+              仪表盘
+            </Link>
+            <Link href="/dashboard/student/exercises" className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700">
+              我的练习
+            </Link>
+            <Link href="/dashboard/student/exams" className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700">
+              我的考试
+            </Link>
+            <Link href="/discussions" className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700">
+              讨论区
+            </Link>
+            <Link href="/dashboard/profile" className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700">
+              个人中心
+            </Link>
+          </div>
+        </div>
 
         {/* 主内容区 */}
         <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">

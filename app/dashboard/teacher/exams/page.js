@@ -222,7 +222,7 @@ export default function TeacherExamsPage() {
                     <ListItemText
                       primary={
                         <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mr: 2 }}>
+                          <Typography variant="subtitle1" component="span" sx={{ fontWeight: 'bold', mr: 2 }}>
                             {exam.title}
                           </Typography>
                           <Chip 
@@ -236,13 +236,13 @@ export default function TeacherExamsPage() {
                         <Box sx={{ mt: 1 }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
                             <CalendarTodayIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
-                            <Typography variant="body2" color="text.secondary">
+                            <Typography variant="body2" component="span" color="text.secondary">
                               开始时间：{formatDate(exam.startTime)} | 结束时间：{formatDate(exam.endTime)}
                             </Typography>
                           </Box>
                           <Box sx={{ display: 'flex', alignItems: 'center' }}>
                             <AccessTimeIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
-                            <Typography variant="body2" color="text.secondary">
+                            <Typography variant="body2" component="span" color="text.secondary">
                               考试时长：{exam.duration} 分钟 | 总分：{exam.totalScore} 分 | 题目数量：{exam.questions.length} 题
                             </Typography>
                           </Box>

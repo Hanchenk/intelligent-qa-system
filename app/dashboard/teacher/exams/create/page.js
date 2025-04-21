@@ -374,7 +374,19 @@ export default function CreateExamPage() {
       ...examInfo,
       questions: selectedQuestions.map(q => ({
         question: q.question._id,
-        score: q.score
+        questionId: q.question._id,
+        score: q.score,
+        // 添加题目详细信息，确保编辑和学生端能正确显示
+        questionDetails: {
+          _id: q.question._id,
+          title: q.question.title,
+          type: q.question.type,
+          difficulty: q.question.difficulty,
+          tags: q.question.tags,
+          options: q.question.options,
+          answer: q.question.answer,
+          content: q.question.content
+        }
       })),
       totalScore: calculateTotalScore()
     };
@@ -386,6 +398,20 @@ export default function CreateExamPage() {
       });
       
       console.log('创建考试响应:', response.data);
+      
+      // 如果API返回的考试数据缺少题目详细信息，尝试更新考试
+      if (response.data && response.data._id) {
+        try {
+          const examId = response.data._id;
+          const updateResponse = await axios.put(`${API_URL}/exams/${examId}`, examData, {
+            headers: { Authorization: `Bearer ${effectiveToken}` }
+          });
+          console.log('更新考试详情响应:', updateResponse.data);
+        } catch (updateError) {
+          console.warn('二次更新考试失败，但不影响基本功能:', updateError);
+        }
+      }
+      
       setSnackbar({
         open: true,
         message: '考试创建成功',
@@ -398,6 +424,43 @@ export default function CreateExamPage() {
       }, 1500);
     } catch (error) {
       console.error('创建考试失败:', error);
+      
+      // 特殊处理：如果后端不支持完整题目信息的存储，改为只存储必要信息
+      if (error.response?.status === 400) {
+        try {
+          console.log('尝试简化数据格式并重新提交...');
+          const simplifiedData = {
+            ...examInfo,
+            questions: selectedQuestions.map(q => ({
+              question: q.question._id,
+              questionId: q.question._id,
+              score: q.score
+            })),
+            totalScore: calculateTotalScore()
+          };
+          
+          const retryResponse = await axios.post(`${API_URL}/exams`, simplifiedData, {
+            headers: { Authorization: `Bearer ${effectiveToken}` }
+          });
+          
+          console.log('使用简化数据创建考试成功:', retryResponse.data);
+          setSnackbar({
+            open: true,
+            message: '考试创建成功(简化模式)',
+            severity: 'success'
+          });
+          
+          // 延迟导航
+          setTimeout(() => {
+            router.push('/dashboard/teacher/exams');
+          }, 1500);
+          
+          return;
+        } catch (retryError) {
+          console.error('简化模式创建考试也失败:', retryError);
+        }
+      }
+      
       setSnackbar({
         open: true,
         message: `创建考试失败: ${error.response?.data?.message || error.message}`,
