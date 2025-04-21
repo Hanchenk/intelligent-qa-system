@@ -11,7 +11,7 @@ import AddIcon from '@mui/icons-material/Add';
 import AuthGuard from './AuthGuard';
 import StudentNavBar from '../components/StudentNavBar';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 export default function DiscussionsPage() {
   const router = useRouter();
@@ -57,7 +57,7 @@ export default function DiscussionsPage() {
       console.log('讨论列表返回数据:', response.data);
       
       if (response.data && response.data.success) {
-        const fetchedDiscussions = response.data.discussions || [];
+        const fetchedDiscussions = response.data.data?.discussions || [];
         console.log(`获取到${fetchedDiscussions.length}个讨论`);
         setDiscussions(fetchedDiscussions);
         
@@ -65,10 +65,12 @@ export default function DiscussionsPage() {
           console.log('返回的讨论列表为空');
         }
       } else {
+        console.error('API返回失败:', response.data);
         throw new Error(response.data?.message || '获取讨论列表失败');
       }
     } catch (err) {
       console.error('获取讨论列表失败:', err);
+      console.error('错误详情:', JSON.stringify(err, Object.getOwnPropertyNames(err)));
       
       // 根据不同错误类型提供不同错误信息
       let errorMessage = '获取讨论列表失败，请刷新页面重试';
@@ -237,7 +239,7 @@ export default function DiscussionsPage() {
                 </Typography>
                 <div className="space-y-4">
                   {filteredDiscussions.map((discussion) => (
-                    <Card key={discussion.id} className="hover:shadow-lg transition-shadow duration-200">
+                    <Card key={discussion._id || discussion.id} className="hover:shadow-lg transition-shadow duration-200">
                       <CardContent>
                         <div className="flex justify-between items-start">
                           <Typography variant="h6" component="h2" gutterBottom>
@@ -282,8 +284,8 @@ export default function DiscussionsPage() {
                             size="small" 
                             color="primary"
                             onClick={() => {
-                              console.log('跳转到讨论详情页:', discussion.id);
-                              router.push(`/discussions/${discussion.id}`);
+                              console.log('跳转到讨论详情页:', discussion._id || discussion.id);
+                              router.push(`/discussions/${discussion._id || discussion.id}`);
                             }}
                           >
                             查看详情

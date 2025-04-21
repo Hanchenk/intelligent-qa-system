@@ -37,12 +37,15 @@ router.post('/', protect, async (req, res) => {
 // @access  Private
 router.get('/', protect, async (req, res) => {
   try {
+    console.log('获取讨论列表请求 - 用户ID:', req.user._id);
     const { questionId, page = 1, limit = 10 } = req.query;
     
     const query = {};
     if (questionId) query.question = questionId;
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    console.log('执行查询:', JSON.stringify(query));
     
     const discussions = await Discussion.find(query)
       .skip(skip)
@@ -52,6 +55,8 @@ router.get('/', protect, async (req, res) => {
       .populate('question', 'title');
 
     const total = await Discussion.countDocuments(query);
+    
+    console.log(`找到${discussions.length}个讨论，总数${total}`);
 
     res.json({
       success: true,
@@ -64,10 +69,11 @@ router.get('/', protect, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error(error);
+    console.error('获取讨论列表错误:', error);
     res.status(500).json({
       success: false,
-      message: '服务器错误'
+      message: '服务器错误',
+      error: error.message
     });
   }
 });
@@ -145,6 +151,66 @@ router.post('/:id/replies', protect, async (req, res) => {
     });
   } catch (error) {
     console.error(error);
+    res.status(500).json({
+      success: false,
+      message: '服务器错误'
+    });
+  }
+});
+
+// @route   GET /api/discussions/test-data
+// @desc    添加测试讨论数据
+// @access  Public
+router.get('/test-data', async (req, res) => {
+  try {
+    // 检查是否已有讨论
+    const existingCount = await Discussion.countDocuments();
+    
+    if (existingCount > 0) {
+      return res.json({
+        success: true,
+        message: `已存在${existingCount}条讨论数据`,
+        count: existingCount
+      });
+    }
+    
+    // 创建测试用户（如果不存在）
+    const User = require('../models/User');
+    let testUser = await User.findOne({ username: 'testuser' });
+    
+    if (!testUser) {
+      testUser = new User({
+        username: 'testuser',
+        email: 'test@example.com',
+        password: 'password123', // 实际应用中应该加密
+        role: 'student'
+      });
+      await testUser.save();
+    }
+    
+    // 创建测试讨论
+    const testDiscussion = new Discussion({
+      title: '测试讨论标题',
+      content: '这是一个测试讨论内容，用于验证讨论功能是否正常工作。',
+      author: testUser._id,
+      replies: [
+        {
+          content: '这是一个测试回复',
+          author: testUser._id,
+          createdAt: new Date()
+        }
+      ]
+    });
+    
+    await testDiscussion.save();
+    
+    res.json({
+      success: true,
+      message: '测试讨论数据已添加',
+      discussion: testDiscussion
+    });
+  } catch (error) {
+    console.error('添加测试数据失败:', error);
     res.status(500).json({
       success: false,
       message: '服务器错误'
