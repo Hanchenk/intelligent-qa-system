@@ -26,6 +26,7 @@ app.use('/api/submissions', require('./routes/submissions'));
 app.use('/api/discussions', require('./routes/discussions'));
 app.use('/api/llm', require('./routes/llm'));
 app.use('/api/tags', require('./routes/tags'));
+app.use('/api/stats', require('./routes/stats'));
 
 // 基础路由
 app.get('/', (req, res) => {

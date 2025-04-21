@@ -7,11 +7,65 @@ import Link from 'next/link';
 import { logout } from '../../redux/features/authSlice';
 import AuthGuard from '../../components/AuthGuard';
 import TeacherNavBar from '../../components/TeacherNavBar';
+import axios from 'axios';
+import { CircularProgress } from '@mui/material';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 export default function TeacherDashboard() {
   const router = useRouter();
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
+  const [stats, setStats] = useState({
+    questionCount: 0,
+    examCount: 0,
+    tagCount: 0
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  // 获取统计数据
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!user) return;
+      
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      
+      setLoading(true);
+      setError(null);
+      
+      try {
+        const response = await axios.get(`${API_URL}/api/stats/dashboard`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        if (response.data.success) {
+          setStats({
+            questionCount: response.data.stats.questionCount || 0,
+            examCount: response.data.stats.examCount || 0,
+            tagCount: response.data.stats.tagCount || 0
+          });
+        } else {
+          throw new Error(response.data.message || '获取统计数据失败');
+        }
+      } catch (err) {
+        console.error('获取统计数据失败:', err);
+        setError('获取统计数据失败，请刷新页面重试');
+        
+        // 设置备用统计数据
+        setStats({
+          questionCount: 0,
+          examCount: 0,
+          tagCount: 0
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchStats();
+  }, [user]);
   
   const handleLogout = async () => {
     try {
@@ -56,7 +110,11 @@ export default function TeacherDashboard() {
                         </dt>
                         <dd>
                           <div className="text-lg font-medium text-gray-900 dark:text-white">
-                            142题
+                            {loading ? (
+                              <CircularProgress size={20} />
+                            ) : (
+                              `${stats.questionCount}题`
+                            )}
                           </div>
                         </dd>
                       </div>
@@ -86,7 +144,11 @@ export default function TeacherDashboard() {
                         </dt>
                         <dd>
                           <div className="text-lg font-medium text-gray-900 dark:text-white">
-                            8场
+                            {loading ? (
+                              <CircularProgress size={20} />
+                            ) : (
+                              `${stats.examCount}场`
+                            )}
                           </div>
                         </dd>
                       </div>
@@ -116,7 +178,11 @@ export default function TeacherDashboard() {
                         </dt>
                         <dd>
                           <div className="text-lg font-medium text-gray-900 dark:text-white">
-                            24个
+                            {loading ? (
+                              <CircularProgress size={20} />
+                            ) : (
+                              `${stats.tagCount}个`
+                            )}
                           </div>
                         </dd>
                       </div>
