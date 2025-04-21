@@ -140,7 +140,7 @@ export default function ResultPage({ params }) {
         results: resultData.results
       };
       
-      // 保存记录
+      // 保存记录 - 注意这是异步函数
       await saveExerciseRecord(recordData);
       
       setIsSaved(true);

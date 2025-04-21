@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useSelector } from 'react-redux';
 import Link from 'next/link';
 import AuthGuard from '../../../components/AuthGuard';
-import { getMistakes } from '@/app/services/recordService';
+import { getMistakesFromDB, updateMistakeStatus, deleteMistake } from '@/app/services/recordService';
 import MarkdownPreview from '@/app/components/MarkdownPreview';
 import OptionMarkdownPreview from '@/app/components/OptionMarkdownPreview';
 
@@ -56,6 +56,7 @@ import BookmarkIcon from '@mui/icons-material/Bookmark';
 import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import ReplayIcon from '@mui/icons-material/Replay';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import DeleteIcon from '@mui/icons-material/Delete';
 
 export default function StudentMistakesPage() {
   const router = useRouter();
@@ -75,8 +76,8 @@ export default function StudentMistakesPage() {
     if (user && user.id) {
       loadMistakes();
     } else {
-      // 如果用户未登录，加载模拟数据
-      loadMockMistakes();
+      // 用户未登录，重定向到登录页面
+      router.push('/login');
     }
   }, [user]);
   
@@ -132,92 +133,6 @@ export default function StudentMistakesPage() {
     setFilteredMistakes(filtered);
   }, [mistakes, searchTerm, selectedCategory, sortBy]);
   
-  // 加载模拟错题数据
-  const loadMockMistakes = () => {
-    const mockMistakes = [
-      {
-        question: {
-          id: 'q1',
-          title: '以下哪个CSS属性可以用来改变文本颜色？',
-          type: '单选题',
-          tags: ['CSS', '样式', '文本'],
-          options: [
-            { id: 'a', content: 'text-color' },
-            { id: 'b', content: 'font-color' },
-            { id: 'c', content: 'color' },
-            { id: 'd', content: 'text-style' }
-          ],
-          correctAnswer: 'c',
-          explanation: 'CSS中，color属性用于设置文本颜色。text-color、font-color和text-style不是有效的CSS属性。'
-        },
-        count: 2,
-        lastWrongTime: new Date(Date.now() - 86400000).toISOString(),
-        userAnswer: 'a'
-      },
-      {
-        question: {
-          id: 'q2',
-          title: '以下哪些是JavaScript中的基本数据类型？',
-          type: '多选题',
-          tags: ['JavaScript', '数据类型', '基础知识'],
-          options: [
-            { id: 'a', content: 'String' },
-            { id: 'b', content: 'Array' },
-            { id: 'c', content: 'Number' },
-            { id: 'd', content: 'Boolean' },
-            { id: 'e', content: 'Object' }
-          ],
-          correctAnswer: ['a', 'c', 'd'],
-          explanation: 'JavaScript中的基本数据类型包括String、Number、Boolean、Undefined、Null和Symbol。Array和Object是引用类型。'
-        },
-        count: 3,
-        lastWrongTime: new Date(Date.now() - 172800000).toISOString(),
-        userAnswer: ['a', 'b', 'c']
-      },
-      {
-        question: {
-          id: 'q3',
-          title: '编写一个函数，计算数组中所有数字的和',
-          type: '编程题',
-          tags: ['JavaScript', '数组', '函数', '算法'],
-          correctAnswer: `function sum(arr) {
-  return arr.reduce((acc, curr) => acc + curr, 0);
-}`,
-          explanation: '使用reduce方法可以高效地计算数组元素的总和。初始累加器值设为0，遍历时将当前元素加到累加器中。'
-        },
-        count: 1,
-        lastWrongTime: new Date().toISOString(),
-        userAnswer: `function sum(arr) {
-  let total = 0;
-  for(let i=0; i<arr.length(); i++) {
-    total += arr[i];
-  }
-  return total;
-}`
-      }
-    ];
-    
-    // 提取所有问题类型和分类
-    const types = new Set();
-    const cats = new Set();
-    
-    mockMistakes.forEach(mistake => {
-      if (mistake.question.type) {
-        types.add(mistake.question.type);
-      }
-      
-      if (mistake.question.tags && mistake.question.tags.length > 0) {
-        mistake.question.tags.forEach(tag => cats.add(tag));
-      }
-    });
-    
-    setMistakes(mockMistakes);
-    setFilteredMistakes(mockMistakes);
-    setQuestionTypes(Array.from(types));
-    setCategories(Array.from(cats));
-    setLoading(false);
-  };
-  
   // 加载错题
   const loadMistakes = async () => {
     if (!user) return;
@@ -225,8 +140,8 @@ export default function StudentMistakesPage() {
     setLoading(true);
     
     try {
-      // 从服务获取错题
-      const userMistakes = await getMistakes(user.id);
+      // 从数据库获取错题
+      const userMistakes = await getMistakesFromDB(user.id);
       
       // 提取所有问题类型和分类
       const types = new Set();
@@ -280,12 +195,258 @@ export default function StudentMistakesPage() {
     setSelectedQuestion(null);
   };
   
+  // 标记错题为已解决或未解决
+  const handleMarkResolved = async (mistakeId, isResolved) => {
+    try {
+      const success = await updateMistakeStatus(mistakeId, isResolved);
+      
+      if (success) {
+        // 更新本地状态
+        setMistakes(prevMistakes => 
+          prevMistakes.map(mistake => 
+            mistake.id === mistakeId 
+              ? { ...mistake, resolved: isResolved } 
+              : mistake
+          )
+        );
+      }
+    } catch (error) {
+      console.error('更新错题状态失败:', error);
+    }
+  };
+  
+  // 删除错题
+  const handleDeleteMistake = async (mistakeId) => {
+    try {
+      const success = await deleteMistake(mistakeId);
+      
+      if (success) {
+        // 更新本地状态
+        setMistakes(prevMistakes => 
+          prevMistakes.filter(mistake => mistake.id !== mistakeId)
+        );
+      }
+    } catch (error) {
+      console.error('删除错题失败:', error);
+    }
+  };
+  
   // 格式化日期
   const formatDate = (dateString) => {
     if (!dateString) return '';
     
     const date = new Date(dateString);
     return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+  };
+  
+  // 渲染正确答案
+  const renderCorrectAnswer = (question) => {
+    if (!question) return '无法显示正确答案';
+    
+    if (question.type === '单选题') {
+      if (!question.options || !Array.isArray(question.options)) {
+        return question.correctAnswer || '无法显示';
+      }
+      const correct = question.options.find(opt => opt.id === question.correctAnswer);
+      return correct ? `${correct.content} (${question.correctAnswer})` : question.correctAnswer;
+    } else if (question.type === '多选题') {
+      if (!Array.isArray(question.correctAnswer)) return question.correctAnswer;
+      
+      if (!question.options || !Array.isArray(question.options)) {
+        return Array.isArray(question.correctAnswer) ? question.correctAnswer.join(', ') : question.correctAnswer;
+      }
+      
+      const correctOptions = question.correctAnswer.map(id => {
+        const option = question.options.find(opt => opt.id === id);
+        return option ? `${option.content} (${id})` : id;
+      });
+      
+      return correctOptions.join(', ');
+    } else if (question.type === '编程题') {
+      return (
+        <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', backgroundColor: '#f0f0f0', padding: '8px', borderRadius: '4px' }}>
+          {question.correctAnswer}
+        </pre>
+      );
+    } else {
+      return question.correctAnswer;
+    }
+  };
+  
+  // 渲染用户答案
+  const renderUserAnswer = (userAnswer, questionType) => {
+    if (userAnswer === undefined || userAnswer === null) return '未作答';
+    
+    if (questionType === '多选题' && Array.isArray(userAnswer)) {
+      return userAnswer.join(', ');
+    } else if (questionType === '编程题') {
+      return (
+        <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', backgroundColor: '#f0f0f0', padding: '8px', borderRadius: '4px' }}>
+          {userAnswer}
+        </pre>
+      );
+    } else {
+      return userAnswer.toString();
+    }
+  };
+  
+  // 渲染错题列表
+  const renderMistakesList = () => {
+    if (loading) {
+      return (
+        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+          <CircularProgress />
+        </Box>
+      );
+    }
+    
+    if (!filteredMistakes || filteredMistakes.length === 0) {
+      return (
+        <Paper sx={{ p: 3, textAlign: 'center' }}>
+          <Typography color="textSecondary">
+            {searchTerm || selectedCategory !== 'all' ? 
+              '没有找到符合条件的错题' : 
+              '您还没有收集的错题，继续练习会自动收集错题'}
+          </Typography>
+        </Paper>
+      );
+    }
+    
+    return (
+      <div>
+        {filteredMistakes.map((mistake, index) => (
+          <Accordion 
+            key={mistake.id || index} 
+            sx={{ 
+              mb: 2,
+              bgcolor: mistake.resolved ? 'rgba(76, 175, 80, 0.08)' : 'inherit'
+            }}
+          >
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <Box sx={{ width: '100%' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                  <Typography variant="subtitle1" sx={{ 
+                    textDecoration: mistake.resolved ? 'line-through' : 'none',
+                    color: mistake.resolved ? 'text.secondary' : 'text.primary'
+                  }}>
+                    {mistake.question.title}
+                  </Typography>
+                  <Box>
+                    {mistake.resolved && (
+                      <Chip 
+                        size="small" 
+                        label="已解决" 
+                        color="success"
+                        sx={{ mr: 1 }}
+                      />
+                    )}
+                    <Chip 
+                      size="small" 
+                      label={`错误次数: ${mistake.count}`} 
+                      color={mistake.count > 2 ? "error" : "warning"}
+                      sx={{ mr: 1 }}
+                    />
+                    <Chip 
+                      size="small" 
+                      label={mistake.question.type} 
+                      color="primary"
+                    />
+                  </Box>
+                </Box>
+                <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                  {mistake.question.tags && mistake.question.tags.map((tag, i) => (
+                    <Chip 
+                      key={i} 
+                      label={tag} 
+                      size="small" 
+                      variant="outlined" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedCategory(tag);
+                      }}
+                    />
+                  ))}
+                </Box>
+                <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+                  上次错误: {formatDate(mistake.lastWrongTime)}
+                </Typography>
+              </Box>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Divider sx={{ mb: 2 }} />
+              <Typography variant="subtitle2" gutterBottom>
+                正确答案:
+              </Typography>
+              <Box sx={{ p: 1, bgcolor: 'success.light', borderRadius: 1, mb: 2 }}>
+                {renderCorrectAnswer(mistake.question)}
+              </Box>
+              
+              <Typography variant="subtitle2" gutterBottom>
+                您的答案:
+              </Typography>
+              <Box sx={{ p: 1, bgcolor: 'error.light', borderRadius: 1, mb: 2 }}>
+                {renderUserAnswer(mistake.userAnswer, mistake.question.type)}
+              </Box>
+              
+              {mistake.question.explanation && (
+                <>
+                  <Typography variant="subtitle2" gutterBottom>
+                    解析:
+                  </Typography>
+                  <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderRadius: 1, mb: 2 }}>
+                    <Typography>{mistake.question.explanation}</Typography>
+                  </Box>
+                </>
+              )}
+              
+              {mistake.notes && (
+                <>
+                  <Typography variant="subtitle2" gutterBottom>
+                    笔记:
+                  </Typography>
+                  <Box sx={{ p: 2, bgcolor: '#f0f7ff', borderRadius: 1, mb: 2 }}>
+                    <Typography>{mistake.notes}</Typography>
+                  </Box>
+                </>
+              )}
+              
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 2 }}>
+                <Button
+                  variant="outlined"
+                  color={mistake.resolved ? "warning" : "success"}
+                  startIcon={mistake.resolved ? <CancelIcon /> : <CheckCircleIcon />}
+                  onClick={() => handleMarkResolved(mistake.id, !mistake.resolved)}
+                >
+                  {mistake.resolved ? '标记为未解决' : '标记为已解决'}
+                </Button>
+                
+                <Button 
+                  variant="outlined" 
+                  color="primary" 
+                  startIcon={<PlayArrowIcon />}
+                  onClick={() => router.push(`/dashboard/student/exercises?tags=${encodeURIComponent(mistake.question.tags.join(','))}`)}
+                >
+                  练习相关题目
+                </Button>
+                
+                <Button
+                  variant="outlined"
+                  color="error"
+                  startIcon={<DeleteIcon />}
+                  onClick={() => {
+                    if(window.confirm('确定要删除这道错题吗？')) {
+                      handleDeleteMistake(mistake.id);
+                    }
+                  }}
+                >
+                  删除
+                </Button>
+              </Box>
+            </AccordionDetails>
+          </Accordion>
+        ))}
+      </div>
+    );
   };
   
   // 渲染问题详情对话框
@@ -390,166 +551,6 @@ export default function StudentMistakesPage() {
         </DialogActions>
       </Dialog>
     );
-  };
-  
-  // 渲染错题列表
-  const renderMistakesList = () => {
-    if (loading) {
-      return (
-        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
-          <CircularProgress />
-        </Box>
-      );
-    }
-    
-    if (!filteredMistakes || filteredMistakes.length === 0) {
-      return (
-        <Paper sx={{ p: 3, textAlign: 'center' }}>
-          <Typography color="textSecondary">
-            {searchTerm || selectedCategory !== 'all' ? 
-              '没有找到符合条件的错题' : 
-              '您还没有收集的错题，继续练习会自动收集错题'}
-          </Typography>
-        </Paper>
-      );
-    }
-    
-    return (
-      <div>
-        {filteredMistakes.map((mistake, index) => (
-          <Accordion key={index} sx={{ mb: 2 }}>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Box sx={{ width: '100%' }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                  <Typography variant="subtitle1">
-                    {mistake.question.title}
-                  </Typography>
-                  <Box>
-                    <Chip 
-                      size="small" 
-                      label={`错误次数: ${mistake.count}`} 
-                      color={mistake.count > 2 ? "error" : "warning"}
-                      sx={{ mr: 1 }}
-                    />
-                    <Chip 
-                      size="small" 
-                      label={mistake.question.type} 
-                      color="primary"
-                    />
-                  </Box>
-                </Box>
-                <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                  {mistake.question.tags && mistake.question.tags.map((tag, i) => (
-                    <Chip 
-                      key={i} 
-                      label={tag} 
-                      size="small" 
-                      variant="outlined" 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedCategory(tag);
-                      }}
-                    />
-                  ))}
-                </Box>
-                <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-                  上次错误: {formatDate(mistake.lastWrongTime)}
-                </Typography>
-              </Box>
-            </AccordionSummary>
-            <AccordionDetails>
-              <Divider sx={{ mb: 2 }} />
-              <Typography variant="subtitle2" gutterBottom>
-                正确答案:
-              </Typography>
-              <Box sx={{ p: 1, bgcolor: 'success.light', borderRadius: 1, mb: 2 }}>
-                {renderCorrectAnswer(mistake.question)}
-              </Box>
-              
-              <Typography variant="subtitle2" gutterBottom>
-                您的答案:
-              </Typography>
-              <Box sx={{ p: 1, bgcolor: 'error.light', borderRadius: 1, mb: 2 }}>
-                {renderUserAnswer(mistake.userAnswer, mistake.question.type)}
-              </Box>
-              
-              {mistake.question.explanation && (
-                <>
-                  <Typography variant="subtitle2" gutterBottom>
-                    解析:
-                  </Typography>
-                  <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderRadius: 1, mb: 2 }}>
-                    <Typography>{mistake.question.explanation}</Typography>
-                  </Box>
-                </>
-              )}
-              
-              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
-                <Button 
-                  variant="outlined" 
-                  color="primary" 
-                  startIcon={<PlayArrowIcon />}
-                  onClick={() => router.push(`/dashboard/student/exercises?tags=${encodeURIComponent(mistake.question.tags.join(','))}`)}
-                >
-                  练习相关题目
-                </Button>
-              </Box>
-            </AccordionDetails>
-          </Accordion>
-        ))}
-      </div>
-    );
-  };
-  
-  // 渲染正确答案
-  const renderCorrectAnswer = (question) => {
-    if (!question) return '无法显示正确答案';
-    
-    if (question.type === '单选题') {
-      if (!question.options || !Array.isArray(question.options)) {
-        return question.correctAnswer || '无法显示';
-      }
-      const correct = question.options.find(opt => opt.id === question.correctAnswer);
-      return correct ? `${correct.content} (${question.correctAnswer})` : question.correctAnswer;
-    } else if (question.type === '多选题') {
-      if (!Array.isArray(question.correctAnswer)) return question.correctAnswer;
-      
-      if (!question.options || !Array.isArray(question.options)) {
-        return Array.isArray(question.correctAnswer) ? question.correctAnswer.join(', ') : question.correctAnswer;
-      }
-      
-      const correctOptions = question.correctAnswer.map(id => {
-        const option = question.options.find(opt => opt.id === id);
-        return option ? `${option.content} (${id})` : id;
-      });
-      
-      return correctOptions.join(', ');
-    } else if (question.type === '编程题') {
-      return (
-        <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', backgroundColor: '#f0f0f0', padding: '8px', borderRadius: '4px' }}>
-          {question.correctAnswer}
-        </pre>
-      );
-    } else {
-      return question.correctAnswer;
-    }
-  };
-  
-  // 渲染用户答案
-  const renderUserAnswer = (userAnswer, questionType) => {
-    if (userAnswer === undefined || userAnswer === null) return '未作答';
-    
-    if (questionType === '多选题' && Array.isArray(userAnswer)) {
-      return userAnswer.join(', ');
-    } else if (questionType === '编程题') {
-      return (
-        <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', backgroundColor: '#f0f0f0', padding: '8px', borderRadius: '4px' }}>
-          {userAnswer}
-        </pre>
-      );
-    } else {
-      return userAnswer.toString();
-    }
   };
   
   return (

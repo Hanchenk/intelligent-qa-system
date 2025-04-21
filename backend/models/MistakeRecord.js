@@ -12,9 +12,22 @@ const mistakeRecordSchema = new mongoose.Schema({
     required: true
   },
   submission: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Submission',
-    required: true
+    userAnswer: {
+      type: mongoose.Schema.Types.Mixed, // 可以存储各种类型的答案（字符串、数组等）
+      default: null
+    },
+    submittedAt: {
+      type: Date,
+      default: Date.now
+    },
+    score: {
+      type: Number,
+      default: 0
+    }
+  },
+  count: {
+    type: Number,
+    default: 1
   },
   notes: {
     type: String,

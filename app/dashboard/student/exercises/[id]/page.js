@@ -293,32 +293,6 @@ export default function ExercisePage({ params }) {
     }
   };
   
-  // 提交答案
-  const submitAnswers = () => {
-    // 关闭对话框
-    setIsFinishDialogOpen(false);
-    
-    // 模拟提交
-    console.log('提交答案:', userAnswers);
-    
-    // 计算结果
-    const results = calculateResults();
-    
-    // 保存到本地存储，以便结果页面使用
-    localStorage.setItem('exerciseResults', JSON.stringify({
-      exerciseId,
-      exerciseTitle: exercise.title,
-      questions,
-      userAnswers,
-      results,
-      timeSpent,
-      tags: exercise.tags || []
-    }));
-    
-    // 跳转到结果页面
-    router.push(`/dashboard/student/exercises/${exerciseId}/result`);
-  };
-  
   // 计算结果
   const calculateResults = () => {
     let correctCount = 0;
@@ -359,13 +333,40 @@ export default function ExercisePage({ params }) {
       });
     });
     
+    // 计算最终结果
     return {
-      correctCount,
       totalScore,
       maxScore,
       percentage: Math.round((totalScore / maxScore) * 100),
-      questionResults: questionResults
+      correctCount,
+      questionResults  // 确保这个字段被包含在结果中
     };
+  };
+  
+  // 提交答案
+  const submitAnswers = () => {
+    // 关闭对话框
+    setIsFinishDialogOpen(false);
+    
+    // 模拟提交
+    console.log('提交答案:', userAnswers);
+    
+    // 计算结果
+    const results = calculateResults();
+    
+    // 保存到本地存储，以便结果页面使用
+    localStorage.setItem('exerciseResults', JSON.stringify({
+      exerciseId,
+      exerciseTitle: exercise.title,
+      questions,
+      userAnswers,
+      results,
+      timeSpent,
+      tags: exercise.tags || []
+    }));
+    
+    // 跳转到结果页面
+    router.push(`/dashboard/student/exercises/${exerciseId}/result`);
   };
   
   // 格式化剩余时间

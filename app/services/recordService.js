@@ -3,9 +3,189 @@
  * 用于管理学生的答题记录、分数统计和进度跟踪
  */
 
+// API基础URL
+const apiBaseUrl = 'http://localhost:3001';
+
 // 用于生成唯一ID
 const generateId = () => {
   return Date.now().toString(36) + Math.random().toString(36).substring(2);
+};
+
+/**
+ * 从数据库获取错题本
+ * @param {string} userId - 用户ID
+ * @returns {Promise<Array>} 错题列表
+ */
+export const getMistakesFromDB = async (userId) => {
+  try {
+    if (!userId) return [];
+    
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.error('未找到认证令牌');
+      return [];
+    }
+    
+    const response = await fetch(`${apiBaseUrl}/api/mistakes`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error('获取错题失败');
+    }
+    
+    const result = await response.json();
+    
+    if (!result.success) {
+      throw new Error(result.message || '获取错题失败');
+    }
+    
+    // 转换后端数据为前端需要的格式
+    return result.data.map(item => ({
+      id: item._id,
+      question: {
+        id: item.question._id,
+        title: item.question.title,
+        type: item.question.type,
+        options: item.question.options,
+        correctAnswer: item.question.correctAnswer,
+        explanation: item.question.explanation,
+        tags: item.question.tags.map(tag => typeof tag === 'object' ? tag.name : tag)
+      },
+      count: item.count || 1,
+      lastWrongTime: item.updatedAt,
+      userAnswer: item.submission ? item.submission.userAnswer : null,
+      notes: item.notes,
+      resolved: item.resolved
+    }));
+  } catch (error) {
+    console.error('获取错题集失败:', error);
+    return [];
+  }
+};
+
+/**
+ * 标记错题为已解决/未解决
+ * @param {string} mistakeId - 错题记录ID 
+ * @param {boolean} isResolved - 是否已解决
+ * @returns {Promise<boolean>} 是否更新成功
+ */
+export const updateMistakeStatus = async (mistakeId, isResolved) => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.error('未找到认证令牌');
+      return false;
+    }
+    
+    const response = await fetch(`${apiBaseUrl}/api/mistakes/${mistakeId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        resolved: isResolved
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('更新错题状态失败');
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('更新错题状态失败:', error);
+    return false;
+  }
+};
+
+/**
+ * 删除错题记录
+ * @param {string} mistakeId - 错题记录ID
+ * @returns {Promise<boolean>} 是否删除成功
+ */
+export const deleteMistake = async (mistakeId) => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.error('未找到认证令牌');
+      return false;
+    }
+    
+    const response = await fetch(`${apiBaseUrl}/api/mistakes/${mistakeId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('删除错题失败');
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('删除错题失败:', error);
+    return false;
+  }
+};
+
+/**
+ * 添加题目到错题本
+ * @param {string} questionId - 题目ID
+ * @param {any} userAnswer - 用户的错误答案
+ * @param {string} notes - 可选的笔记
+ * @returns {Promise<boolean>} 是否添加成功
+ */
+export const addToMistake = async (questionId, userAnswer, notes = '') => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.error('未找到认证令牌');
+      return false;
+    }
+    
+    console.log(`正在添加错题，题目ID: ${questionId}`);
+    console.log('用户答案:', userAnswer);
+    
+    const response = await fetch(`${apiBaseUrl}/api/mistakes/add/${questionId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ 
+        userAnswer,
+        notes 
+      })
+    });
+    
+    // 记录完整响应信息以便调试
+    const responseText = await response.text();
+    console.log('服务器响应状态:', response.status, response.statusText);
+    console.log('响应内容:', responseText);
+    
+    if (!response.ok) {
+      throw new Error(`添加错题失败: ${response.status} ${response.statusText} - ${responseText}`);
+    }
+    
+    // 尝试解析JSON（如果响应是有效的JSON）
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch (e) {
+      console.error('无法解析响应JSON:', e);
+      return false;
+    }
+    
+    return result.success;
+  } catch (error) {
+    console.error('添加错题失败:', error);
+    return false;
+  }
 };
 
 /**
@@ -13,7 +193,7 @@ const generateId = () => {
  * @param {Object} record - 练习记录对象
  * @returns {Object} 保存的记录，带有ID和时间戳
  */
-export const saveExerciseRecord = (record) => {
+export const saveExerciseRecord = async (record) => {
   try {
     // 确保有用户ID
     if (!record.userId) {
@@ -38,6 +218,38 @@ export const saveExerciseRecord = (record) => {
     
     // 更新统计信息
     updateStatistics(newRecord);
+
+    // 自动将错误的题目添加到错题本数据库
+    if (record.questions && Array.isArray(record.questions) && record.results && record.results.questionResults) {
+      const token = localStorage.getItem('token');
+      if (token) {
+        console.log('开始同步错题到数据库...');
+        // 遍历所有题目，找出回答错误的
+        for (let i = 0; i < record.questions.length; i++) {
+          const question = record.questions[i];
+          const result = record.results.questionResults[i];
+          
+          // 如果答错了，添加到错题本
+          if (result && !result.isCorrect) {
+            try {
+              const userAnswer = record.answers ? record.answers[question.id] : null;
+              const success = await addToMistake(question.id, userAnswer);
+              if (success) {
+                console.log(`成功添加题目 ${question.id} 到错题本数据库`);
+              } else {
+                console.error(`添加题目 ${question.id} 到错题本数据库失败`);
+              }
+            } catch (error) {
+              // 捕获错误但不中断循环，允许其他错题继续添加
+              console.error(`添加题目 ${question.id} 到错题本时出错:`, error);
+            }
+          }
+        }
+        console.log('错题同步完成');
+      } else {
+        console.warn('未找到令牌，无法同步错题到数据库');
+      }
+    }
     
     return newRecord;
   } catch (error) {
