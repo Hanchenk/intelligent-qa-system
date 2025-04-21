@@ -3,6 +3,9 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 
+// 使用环境变量API_URL
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+
 const initialState = {
   questions: [],
   currentQuestion: null,
@@ -34,7 +37,7 @@ export const fetchQuestions = createAsyncThunk(
         params
       };
       
-      const response = await axios.get('http://localhost:3001/api/questions', config);
+      const response = await axios.get(`${API_URL}/questions`, config);
       return response.data;
     } catch (error) {
       return rejectWithValue(
@@ -61,7 +64,7 @@ export const fetchQuestionById = createAsyncThunk(
         }
       };
       
-      const response = await axios.get(`http://localhost:3001/api/questions/${id}`, config);
+      const response = await axios.get(`${API_URL}/questions/${id}`, config);
       return response.data;
     } catch (error) {
       return rejectWithValue(
@@ -88,7 +91,7 @@ export const createQuestion = createAsyncThunk(
         }
       };
       
-      const response = await axios.post('http://localhost:3001/api/questions', questionData, config);
+      const response = await axios.post(`${API_URL}/questions`, questionData, config);
       return response.data;
     } catch (error) {
       return rejectWithValue(
@@ -115,7 +118,7 @@ export const updateQuestion = createAsyncThunk(
         }
       };
       
-      const response = await axios.put(`http://localhost:3001/api/questions/${id}`, questionData, config);
+      const response = await axios.put(`${API_URL}/questions/${id}`, questionData, config);
       return response.data;
     } catch (error) {
       return rejectWithValue(
@@ -142,7 +145,7 @@ export const deleteQuestion = createAsyncThunk(
         }
       };
       
-      const response = await axios.delete(`http://localhost:3001/api/questions/${id}`, config);
+      const response = await axios.delete(`${API_URL}/questions/${id}`, config);
       return { id, ...response.data };
     } catch (error) {
       return rejectWithValue(
@@ -170,7 +173,7 @@ export const searchQuestions = createAsyncThunk(
         params: { query }
       };
       
-      const response = await axios.get('http://localhost:3001/api/questions/search', config);
+      const response = await axios.get(`${API_URL}/questions/search`, config);
       return response.data;
     } catch (error) {
       return rejectWithValue(

@@ -349,11 +349,8 @@ export default function EditQuestionPage({ params }) {
         setLoading(true);
         
         // 先获取所有题目列表
-        const listResponse = await axios.get(`${API_URL}/api/questions`, {
-          headers: { 
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+        const listResponse = await axios.get(`${API_URL}/questions`, {
+          headers: { Authorization: `Bearer ${token}` }
         });
         
         console.log('获取题目列表成功，数据条数:', listResponse.data.data?.length);

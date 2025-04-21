@@ -89,7 +89,7 @@ export default function TeacherQuestionsPage() {
       if (filterDifficulty !== 'all') queryParams += `&difficulty=${filterDifficulty}`;
       if (searchTerm.trim()) queryParams += `&search=${encodeURIComponent(searchTerm.trim())}`;
       
-      const response = await axios.get(`${API_URL}/api/questions${queryParams}`, {
+      const response = await axios.get(`${API_URL}/questions${queryParams}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -148,7 +148,7 @@ export default function TeacherQuestionsPage() {
     if (!questionToDelete || !token) return;
     
     try {
-      await axios.delete(`${API_URL}/api/questions/${questionToDelete._id}`, {
+      await axios.delete(`${API_URL}/questions/${questionToDelete._id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       

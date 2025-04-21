@@ -287,9 +287,12 @@ export default function CreateQuestionPage() {
         )
       };
       
-      // 发送请求 - 修正API URL路径
-      await axios.post(`${API_URL}/api/questions`, formData, {
-        headers: { Authorization: `Bearer ${token}` }
+      // 提交到API
+      await axios.post(`${API_URL}/questions`, formData, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
       
       // 显示成功消息

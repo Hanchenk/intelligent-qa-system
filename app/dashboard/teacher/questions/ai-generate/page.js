@@ -218,8 +218,11 @@ export default function AIGenerateQuestionsPage() {
       // 逐个提交题目
       for (const question of questionsWithTags) {
         try {
-          await axios.post(`${API_URL}/api/questions`, question, {
-            headers: { Authorization: `Bearer ${token}` }
+          await axios.post(`${API_URL}/questions`, question, {
+            headers: { 
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
           });
           successCount++;
         } catch (err) {
