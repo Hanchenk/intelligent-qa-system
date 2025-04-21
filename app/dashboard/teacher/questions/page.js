@@ -31,7 +31,9 @@ import {
   FormControl,
   InputLabel,
   Chip,
-  Pagination
+  Pagination,
+  Autocomplete,
+  Box
 } from '@mui/material';
 
 // Material Icons
@@ -42,6 +44,7 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import SearchIcon from '@mui/icons-material/Search';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
+import LabelIcon from '@mui/icons-material/Label';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -58,6 +61,8 @@ export default function TeacherQuestionsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [filterDifficulty, setFilterDifficulty] = useState('all');
+  const [filterTags, setFilterTags] = useState([]);
+  const [availableTags, setAvailableTags] = useState([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -70,10 +75,26 @@ export default function TeacherQuestionsPage() {
   const questionTypes = ['单选题', '多选题', '判断题', '填空题', '简答题', '编程题'];
   const difficultyLevels = ['简单', '中等', '困难'];
   
-  // 加载题目数据
+  // 加载题目数据和标签数据
   useEffect(() => {
     fetchQuestions();
-  }, [page, filterType, filterDifficulty, searchTerm]);
+    fetchTags();
+  }, [page, filterType, filterDifficulty, filterTags, searchTerm]);
+  
+  // 获取所有标签
+  const fetchTags = async () => {
+    if (!token) return;
+    
+    try {
+      const response = await axios.get(`${API_URL}/tags`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setAvailableTags(response.data || []);
+    } catch (err) {
+      console.error('获取标签列表失败:', err);
+    }
+  };
   
   // 获取题目列表
   const fetchQuestions = async () => {
@@ -88,6 +109,7 @@ export default function TeacherQuestionsPage() {
       if (filterType !== 'all') queryParams += `&type=${filterType}`;
       if (filterDifficulty !== 'all') queryParams += `&difficulty=${filterDifficulty}`;
       if (searchTerm.trim()) queryParams += `&search=${encodeURIComponent(searchTerm.trim())}`;
+      if (filterTags.length > 0) queryParams += `&tags=${filterTags.join(',')}`;
       
       const response = await axios.get(`${API_URL}/questions${queryParams}`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -133,7 +155,14 @@ export default function TeacherQuestionsPage() {
     setSearchTerm('');
     setFilterType('all');
     setFilterDifficulty('all');
+    setFilterTags([]);
     setPage(1);
+  };
+  
+  // 处理标签筛选变更
+  const handleTagsChange = (event, newValue) => {
+    setFilterTags(newValue.map(tag => tag._id));
+    setPage(1); // 重置页码
   };
   
   // 打开删除确认对话框
@@ -197,6 +226,25 @@ export default function TeacherQuestionsPage() {
       displayTitle = `${title.substring(0, 80)}...`;
     }
     return displayTitle;
+  };
+  
+  // 渲染题目标签
+  const renderTags = (question) => {
+    if (!question.tags || question.tags.length === 0) return null;
+    
+    return (
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
+        {question.tags.map(tag => (
+          <Chip
+            key={tag._id}
+            label={tag.name}
+            size="small"
+            variant="outlined"
+            style={{ backgroundColor: tag.color, color: '#fff' }}
+          />
+        ))}
+      </Box>
+    );
   };
   
   // 暂时使用的模拟数据
@@ -459,114 +507,139 @@ export default function TeacherQuestionsPage() {
                         ))}
                       </Select>
                     </FormControl>
+                    
+                    <FormControl variant="outlined" size="small" sx={{ gridColumn: { md: 'span 2' } }}>
+                      <Autocomplete
+                        multiple
+                        options={availableTags}
+                        getOptionLabel={(option) => option.name}
+                        value={availableTags.filter(tag => filterTags.includes(tag._id))}
+                        onChange={handleTagsChange}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            label="标签筛选"
+                            placeholder="选择标签"
+                            variant="outlined"
+                            size="small"
+                          />
+                        )}
+                        renderTags={(value, getTagProps) =>
+                          value.map((option, index) => (
+                            <Chip
+                              label={option.name}
+                              {...getTagProps({ index })}
+                              size="small"
+                              style={{ backgroundColor: option.color, color: '#fff' }}
+                            />
+                          ))
+                        }
+                        renderOption={(props, option) => (
+                          <li {...props}>
+                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                              <Box 
+                                component="span" 
+                                sx={{ 
+                                  width: 14, 
+                                  height: 14, 
+                                  mr: 1, 
+                                  borderRadius: '50%', 
+                                  bgcolor: option.color 
+                                }} 
+                              />
+                              {option.name}
+                            </Box>
+                          </li>
+                        )}
+                      />
+                    </FormControl>
                   </div>
                 )}
               </div>
               
+              {/* 错误提示 */}
+              {error && (
+                <div className="mb-4 p-4 bg-red-100 text-red-700 rounded-md">
+                  {error}
+                </div>
+              )}
+              
               {/* 题目列表 */}
               {loading ? (
-                <div className="flex justify-center items-center py-20">
+                <div className="flex justify-center items-center py-12">
                   <CircularProgress />
                 </div>
-              ) : error ? (
-                <div className="text-center py-10">
-                  <p className="text-red-500">{error}</p>
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    onClick={fetchQuestions}
-                    className="mt-4"
-                  >
-                    重试
-                  </Button>
-                </div>
-              ) : questions.length === 0 ? (
-                <div className="text-center py-16">
-                  <p className="text-gray-500 dark:text-gray-400 mb-4">
-                    题库中暂无题目
-                  </p>
-                  <Button 
-                    variant="contained" 
-                    color="primary"
-                    startIcon={<AddIcon />}
-                    onClick={() => router.push('/dashboard/teacher/questions/create')}
-                  >
-                    添加第一道题目
-                  </Button>
+              ) : getPaginatedQuestions().length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-gray-500 dark:text-gray-400">没有找到匹配的题目</p>
                 </div>
               ) : (
-                <>
-                  <TableContainer component={Paper} className="mb-4">
-                    <Table>
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>题目</TableCell>
-                          <TableCell align="center">类型</TableCell>
-                          <TableCell align="center">难度</TableCell>
-                          <TableCell align="center">创建日期</TableCell>
-                          <TableCell align="center">操作</TableCell>
+                <TableContainer component={Paper}>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell width="50%">题目</TableCell>
+                        <TableCell>类型</TableCell>
+                        <TableCell>难度</TableCell>
+                        <TableCell>创建时间</TableCell>
+                        <TableCell align="center">操作</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {getPaginatedQuestions().map((question) => (
+                        <TableRow key={question._id} hover>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="font-medium">
+                                {question.title ? formatTitle(question.title) : '未命名题目'}
+                              </span>
+                              {renderTags(question)}
+                            </div>
+                          </TableCell>
+                          <TableCell>{question.type}</TableCell>
+                          <TableCell>{renderDifficultyChip(question.difficulty)}</TableCell>
+                          <TableCell>
+                            {new Date(question.createdAt).toLocaleDateString('zh-CN')}
+                          </TableCell>
+                          <TableCell align="center">
+                            <IconButton 
+                              size="small" 
+                              color="primary"
+                              onClick={() => router.push(`/dashboard/teacher/questions/view/${question._id}`)}
+                            >
+                              <i className="fas fa-eye"></i>
+                            </IconButton>
+                            <IconButton 
+                              size="small" 
+                              color="primary"
+                              onClick={() => router.push(`/dashboard/teacher/questions/edit/${question._id}`)}
+                            >
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton 
+                              size="small" 
+                              color="error"
+                              onClick={() => openDeleteDialog(question)}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </TableCell>
                         </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {getPaginatedQuestions().map((question) => (
-                          <TableRow key={question._id}>
-                            <TableCell>
-                              <div className="max-w-md" title={question.title}>
-                                <MarkdownPreview 
-                                  content={formatTitle(question.title)} 
-                                  className="table-cell-markdown" 
-                                  isTableCell={true}
-                                />
-                              </div>
-                            </TableCell>
-                            <TableCell align="center">
-                              <Chip size="small" label={question.type} />
-                            </TableCell>
-                            <TableCell align="center">
-                              {renderDifficultyChip(question.difficulty)}
-                            </TableCell>
-                            <TableCell align="center">
-                              {new Date(question.createdAt).toLocaleDateString('zh-CN')}
-                            </TableCell>
-                            <TableCell align="center">
-                              <IconButton 
-                                size="small" 
-                                color="primary"
-                                onClick={() => router.push(`/dashboard/teacher/questions/edit/${question._id}`)}
-                              >
-                                <EditIcon fontSize="small" />
-                              </IconButton>
-                              <IconButton 
-                                size="small" 
-                                color="error"
-                                onClick={() => openDeleteDialog(question)}
-                              >
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                  
-                  {/* 分页控制 */}
-                  <div className="flex justify-center mt-4">
-                    <Pagination
-                      count={totalPages}
-                      page={page}
-                      onChange={handlePageChange}
-                      color="primary"
-                      disabled={totalPages <= 1}
-                      showFirstButton 
-                      showLastButton
-                    />
-                  </div>
-                  <div className="text-center text-sm text-gray-500 mt-2">
-                    第 {page} 页 / 共 {totalPages} 页 (总计 {typeof window !== 'undefined' ? sessionStorage.getItem('totalQuestions') || 0 : 0} 个题目)
-                  </div>
-                </>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               )}
+              
+              {/* 分页 */}
+              <div className="flex justify-center mt-6">
+                <Pagination 
+                  count={totalPages} 
+                  page={page} 
+                  onChange={handlePageChange} 
+                  color="primary"
+                />
+              </div>
             </div>
           </div>
         </main>
@@ -575,18 +648,20 @@ export default function TeacherQuestionsPage() {
         <Dialog
           open={deleteDialogOpen}
           onClose={closeDeleteDialog}
+          aria-labelledby="alert-dialog-title"
+          aria-describedby="alert-dialog-description"
         >
-          <DialogTitle>确认删除</DialogTitle>
+          <DialogTitle id="alert-dialog-title">确认删除题目</DialogTitle>
           <DialogContent>
-            <DialogContentText>
-              您确定要删除题目"{questionToDelete?.title}"吗？此操作不可逆。
+            <DialogContentText id="alert-dialog-description">
+              您确定要删除这道题目吗？此操作无法撤销。
             </DialogContentText>
           </DialogContent>
           <DialogActions>
             <Button onClick={closeDeleteDialog} color="primary">
               取消
             </Button>
-            <Button onClick={handleDeleteQuestion} color="error">
+            <Button onClick={handleDeleteQuestion} color="error" autoFocus>
               删除
             </Button>
           </DialogActions>

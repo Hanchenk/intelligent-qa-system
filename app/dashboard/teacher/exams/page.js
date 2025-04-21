@@ -3,11 +3,98 @@
 import { useRouter } from 'next/navigation';
 import { useSelector } from 'react-redux';
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
 import AuthGuard from '../../../components/AuthGuard';
+import { 
+  Button, 
+  Alert, 
+  Snackbar, 
+  Paper, 
+  Typography, 
+  Box, 
+  Divider, 
+  List, 
+  ListItem, 
+  ListItemText, 
+  Chip,
+  IconButton
+} from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import axios from 'axios';
 
 export default function TeacherExamsPage() {
   const router = useRouter();
-  const { user } = useSelector((state) => state.auth);
+  const { user, token } = useSelector((state) => state.auth);
+  const [exams, setExams] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'success'
+  });
+
+  useEffect(() => {
+    fetchExams();
+  }, []);
+
+  const fetchExams = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/exams/teacher`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setExams(response.data);
+      setLoading(false);
+    } catch (error) {
+      console.error('获取考试列表失败:', error);
+      setError('获取考试列表时出错');
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteExam = async (examId) => {
+    if (!confirm('确定要删除此考试吗？此操作不可撤销。')) {
+      return;
+    }
+
+    try {
+      await axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/api/exams/${examId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setSnackbar({
+        open: true,
+        message: '考试删除成功',
+        severity: 'success'
+      });
+      
+      // 刷新考试列表
+      fetchExams();
+    } catch (error) {
+      console.error('删除考试失败:', error);
+      setSnackbar({
+        open: true,
+        message: '删除考试失败',
+        severity: 'error'
+      });
+    }
+  };
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
 
   return (
     <AuthGuard allowedRoles={['teacher']}>
@@ -43,37 +130,110 @@ export default function TeacherExamsPage() {
 
         {/* 主内容区 */}
         <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-          <div className="px-4 py-6 sm:px-0">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-              <div className="flex flex-col items-center justify-center py-12">
-                <div className="bg-green-100 dark:bg-green-900 p-4 rounded-full mb-6">
-                  <svg className="w-16 h-16 text-green-600 dark:text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">考试管理功能开发中</h1>
-                <p className="text-gray-600 dark:text-gray-300 mb-8 text-center max-w-md">
-                  我们正在努力开发考试管理功能，该功能将在下一个版本中推出。请稍后再来查看！
-                </p>
-                <div className="flex space-x-4">
-                  <Link 
-                    href="/dashboard/teacher"
-                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors"
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+            <Typography variant="h4" component="h1" gutterBottom>
+              考试管理
+            </Typography>
+            <Button 
+              variant="contained" 
+              startIcon={<AddIcon />}
+              onClick={() => router.push('/dashboard/teacher/exams/create')}
+            >
+              创建新考试
+            </Button>
+          </Box>
+
+          <Paper sx={{ p: 2, mb: 2 }}>
+            <Typography variant="h6" gutterBottom>我创建的考试</Typography>
+            <Divider sx={{ mb: 2 }} />
+            
+            {loading ? (
+              <Box sx={{ p: 2, textAlign: 'center' }}>
+                <Typography>加载中...</Typography>
+              </Box>
+            ) : error ? (
+              <Alert severity="error">{error}</Alert>
+            ) : exams.length === 0 ? (
+              <Box sx={{ p: 2, textAlign: 'center' }}>
+                <Typography>您还没有创建任何考试</Typography>
+              </Box>
+            ) : (
+              <List>
+                {exams.map((exam) => (
+                  <ListItem
+                    key={exam._id}
+                    secondaryAction={
+                      <Box>
+                        <IconButton 
+                          edge="end" 
+                          aria-label="编辑"
+                          onClick={() => router.push(`/dashboard/teacher/exams/edit/${exam._id}`)}
+                        >
+                          <EditIcon />
+                        </IconButton>
+                        <IconButton 
+                          edge="end" 
+                          aria-label="删除"
+                          onClick={() => handleDeleteExam(exam._id)}
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </Box>
+                    }
+                    divider
                   >
-                    返回仪表板
-                  </Link>
-                  <button
-                    onClick={() => router.back()}
-                    className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium rounded-md transition-colors"
-                  >
-                    返回上一页
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+                    <ListItemText
+                      primary={
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mr: 2 }}>
+                            {exam.title}
+                          </Typography>
+                          <Chip 
+                            size="small" 
+                            color={new Date() > new Date(exam.endTime) ? "default" : "success"} 
+                            label={new Date() > new Date(exam.endTime) ? "已结束" : "进行中"}
+                          />
+                        </Box>
+                      }
+                      secondary={
+                        <Box sx={{ mt: 1 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                            <CalendarTodayIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
+                            <Typography variant="body2" color="text.secondary">
+                              开始时间：{formatDate(exam.startTime)} | 结束时间：{formatDate(exam.endTime)}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            <AccessTimeIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
+                            <Typography variant="body2" color="text.secondary">
+                              考试时长：{exam.duration} 分钟 | 总分：{exam.totalScore} 分 | 题目数量：{exam.questions.length} 题
+                            </Typography>
+                          </Box>
+                        </Box>
+                      }
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            )}
+          </Paper>
         </main>
       </div>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </AuthGuard>
   );
 } 

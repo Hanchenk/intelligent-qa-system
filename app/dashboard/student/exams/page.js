@@ -3,11 +3,84 @@
 import { useRouter } from 'next/navigation';
 import { useSelector } from 'react-redux';
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
 import AuthGuard from '../../../components/AuthGuard';
+import { 
+  Button, 
+  Alert, 
+  Snackbar, 
+  Paper, 
+  Typography, 
+  Box, 
+  Divider, 
+  List, 
+  ListItem, 
+  ListItemText, 
+  Chip,
+  Card, 
+  CardContent,
+  CardActions,
+  Grid
+} from '@mui/material';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import PersonIcon from '@mui/icons-material/Person';
+import axios from 'axios';
 
 export default function StudentExamsPage() {
   const router = useRouter();
-  const { user } = useSelector((state) => state.auth);
+  const { user, token } = useSelector((state) => state.auth);
+  const [exams, setExams] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchExams();
+  }, []);
+
+  const fetchExams = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/exams/student`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setExams(response.data);
+      setLoading(false);
+    } catch (error) {
+      console.error('获取考试列表失败:', error);
+      setError('获取考试列表时出错');
+      setLoading(false);
+    }
+  };
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const calculateRemainingTime = (endTime) => {
+    const now = new Date();
+    const end = new Date(endTime);
+    const diff = end - now;
+    
+    if (diff <= 0) return '已结束';
+    
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (hours > 24) {
+      const days = Math.floor(hours / 24);
+      return `还剩 ${days} 天 ${hours % 24} 小时`;
+    }
+    
+    return `还剩 ${hours} 小时 ${minutes} 分钟`;
+  };
 
   return (
     <AuthGuard allowedRoles={['student']}>
@@ -27,10 +100,13 @@ export default function StudentExamsPage() {
                     仪表盘
                   </Link>
                   <Link href="/dashboard/student/exercises" className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700">
-                    我的练习
+                    练习题
                   </Link>
                   <Link href="/dashboard/student/exams" className="px-3 py-2 rounded-md text-sm font-medium text-blue-700 bg-blue-50 dark:text-blue-300 dark:bg-blue-900">
-                    我的考试
+                    考试
+                  </Link>
+                  <Link href="/dashboard/student/mistakes" className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700">
+                    错题本
                   </Link>
                   <Link href="/dashboard/profile" className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700">
                     个人中心
@@ -43,35 +119,99 @@ export default function StudentExamsPage() {
 
         {/* 主内容区 */}
         <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-          <div className="px-4 py-6 sm:px-0">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-              <div className="flex flex-col items-center justify-center py-12">
-                <div className="bg-green-100 dark:bg-green-900 p-4 rounded-full mb-6">
-                  <svg className="w-16 h-16 text-green-600 dark:text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">考试功能开发中</h1>
-                <p className="text-gray-600 dark:text-gray-300 mb-8 text-center max-w-md">
-                  我们正在努力开发考试功能，该功能将在下一个版本中推出。请稍后再来查看！
-                </p>
-                <div className="flex space-x-4">
-                  <Link 
-                    href="/dashboard/student"
-                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors"
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+            <Typography variant="h4" component="h1" gutterBottom>
+              在线考试
+            </Typography>
+          </Box>
+
+          {loading ? (
+            <Paper sx={{ p: 5, textAlign: 'center' }}>
+              <Typography>加载中...</Typography>
+            </Paper>
+          ) : error ? (
+            <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>
+          ) : exams.length === 0 ? (
+            <Paper sx={{ p: 5, textAlign: 'center' }}>
+              <Typography variant="h6" gutterBottom>当前没有可参加的考试</Typography>
+              <Typography color="text.secondary">
+                请稍后再来查看，或联系您的老师获取更多信息。
+              </Typography>
+            </Paper>
+          ) : (
+            <Grid container spacing={3}>
+              {exams.map((exam) => (
+                <Grid item xs={12} md={6} lg={4} key={exam._id}>
+                  <Card 
+                    sx={{ 
+                      height: '100%', 
+                      display: 'flex', 
+                      flexDirection: 'column',
+                      transition: 'transform 0.2s',
+                      '&:hover': {
+                        transform: 'translateY(-4px)',
+                        boxShadow: 4
+                      }
+                    }}
                   >
-                    返回仪表板
-                  </Link>
-                  <button
-                    onClick={() => router.back()}
-                    className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium rounded-md transition-colors"
-                  >
-                    返回上一页
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+                    <CardContent sx={{ flexGrow: 1 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                        <Typography variant="h6" component="div" gutterBottom>
+                          {exam.title}
+                        </Typography>
+                        <Chip 
+                          label={calculateRemainingTime(exam.endTime)} 
+                          color="primary" 
+                          size="small"
+                        />
+                      </Box>
+                      
+                      <Typography color="text.secondary" gutterBottom>
+                        {exam.description || '暂无描述'}
+                      </Typography>
+                      
+                      <Box sx={{ mt: 2 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                          <AccessTimeIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
+                          <Typography variant="body2" color="text.secondary">
+                            考试时长：{exam.duration} 分钟
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                          <CalendarTodayIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
+                          <Typography variant="body2" color="text.secondary">
+                            开始时间：{formatDate(exam.startTime)}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                          <CalendarTodayIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
+                          <Typography variant="body2" color="text.secondary">
+                            结束时间：{formatDate(exam.endTime)}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <PersonIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
+                          <Typography variant="body2" color="text.secondary">
+                            出卷人：{exam.creator.name}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </CardContent>
+                    <CardActions>
+                      <Button 
+                        size="small" 
+                        variant="contained" 
+                        fullWidth
+                        onClick={() => router.push(`/dashboard/student/exams/${exam._id}`)}
+                      >
+                        进入考试
+                      </Button>
+                    </CardActions>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          )}
         </main>
       </div>
     </AuthGuard>
