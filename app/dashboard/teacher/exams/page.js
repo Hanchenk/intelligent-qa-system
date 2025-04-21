@@ -26,6 +26,9 @@ import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import axios from 'axios';
 
+// 定义API URL常量
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+
 export default function TeacherExamsPage() {
   const router = useRouter();
   const { user, token } = useSelector((state) => state.auth);
@@ -45,15 +48,46 @@ export default function TeacherExamsPage() {
   const fetchExams = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/exams/teacher`, {
-        headers: { Authorization: `Bearer ${token}` }
+      console.log('正在请求考试列表:', `${API_URL}/exams/teacher`);
+      
+      // 确保token有效
+      const effectiveToken = token || (typeof window !== 'undefined' ? localStorage.getItem('token') : null);
+      
+      const response = await axios.get(`${API_URL}/exams/teacher`, {
+        headers: { Authorization: `Bearer ${effectiveToken}` }
       });
+      
+      console.log('获取到考试列表:', response.data);
       setExams(response.data);
       setLoading(false);
     } catch (error) {
       console.error('获取考试列表失败:', error);
       setError('获取考试列表时出错');
       setLoading(false);
+      
+      // 显示模拟数据
+      setExams([
+        {
+          _id: '1',
+          title: '示例考试1',
+          startTime: new Date(Date.now() - 24 * 60 * 60 * 1000),
+          endTime: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          duration: 120,
+          totalScore: 100,
+          questions: Array(10).fill(0),
+          status: '进行中'
+        },
+        {
+          _id: '2',
+          title: '示例考试2',
+          startTime: new Date(Date.now() - 48 * 60 * 60 * 1000),
+          endTime: new Date(Date.now() - 24 * 60 * 60 * 1000),
+          duration: 90,
+          totalScore: 80,
+          questions: Array(8).fill(0),
+          status: '已结束'
+        }
+      ]);
     }
   };
 
@@ -63,8 +97,11 @@ export default function TeacherExamsPage() {
     }
 
     try {
-      await axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/api/exams/${examId}`, {
-        headers: { Authorization: `Bearer ${token}` }
+      // 确保token有效
+      const effectiveToken = token || (typeof window !== 'undefined' ? localStorage.getItem('token') : null);
+      
+      await axios.delete(`${API_URL}/exams/${examId}`, {
+        headers: { Authorization: `Bearer ${effectiveToken}` }
       });
       
       setSnackbar({
