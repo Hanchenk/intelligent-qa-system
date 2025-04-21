@@ -21,6 +21,7 @@ import ReplyIcon from '@mui/icons-material/Reply';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import AuthGuard from '../AuthGuard';
 import MarkdownPreview from '../MarkdownPreview';
+import StudentNavBar from '../../components/StudentNavBar';
 
 // 调整API路径格式
 const ensureCorrectApiUrl = (url) => {
@@ -257,187 +258,193 @@ export default function DiscussionDetailPage({ params }) {
   // 渲染页面内容
   return (
     <AuthGuard>
-      <div className="container mx-auto p-4 max-w-4xl">
-        <Button 
-          startIcon={<ChevronLeftIcon />} 
-          onClick={handleGoBack}
-          sx={{ mb: 2 }}
-        >
-          返回讨论列表
-        </Button>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <StudentNavBar />
         
-        {loading ? (
-          <div className="flex justify-center my-8">
-            <CircularProgress />
-          </div>
-        ) : error ? (
-          <Paper className="p-6 my-4" elevation={2}>
-            <Typography variant="h6" color="error" className="mb-2">
-              加载讨论失败
-            </Typography>
-            <Typography variant="body1">
-              {error}
-            </Typography>
+        <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+          <div className="container mx-auto p-4 max-w-4xl">
             <Button 
-              variant="outlined" 
-              color="primary" 
-              onClick={() => discussionId && fetchDiscussionDetail(discussionId)} 
-              className="mt-4"
+              startIcon={<ChevronLeftIcon />} 
+              onClick={handleGoBack}
+              sx={{ mb: 2 }}
             >
-              重新加载
+              返回讨论列表
             </Button>
-          </Paper>
-        ) : discussion ? (
-          <>
-            <Card className="mb-6">
-              <CardContent>
-                <div className="flex justify-between items-start mb-4">
-                  <Typography variant="h5" component="h1">
-                    {discussion.title}
-                  </Typography>
-                  {discussion.questionId && (
-                    <Chip 
-                      label={`关联题目: ${discussion.questionTitle || '未知题目'}`} 
-                      color="primary" 
-                      variant="outlined" 
-                      className="ml-2"
-                    />
-                  )}
-                </div>
-
-                <div className="flex items-center mb-4">
-                  <Avatar 
-                    src={discussion.author?.avatar} 
-                    className="mr-2"
-                  >
-                    {discussion.author?.name?.charAt(0) || '?'}
-                  </Avatar>
-                  <div>
-                    <Typography variant="subtitle1">
-                      {discussion.author?.name || '未知用户'}
-                      <Chip 
-                        label={discussion.author?.role === 'teacher' ? '教师' : '学生'} 
-                        size="small" 
-                        color={discussion.author?.role === 'teacher' ? 'secondary' : 'default'} 
-                        className="ml-2"
-                      />
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      {formatDate(discussion.createdAt)}
-                    </Typography>
-                  </div>
-                </div>
-
-                <div className="mb-4">
-                  {Array.isArray(discussion.tags) && discussion.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mb-3">
-                      {discussion.tags.map((tag, index) => (
+            
+            {loading ? (
+              <div className="flex justify-center my-8">
+                <CircularProgress />
+              </div>
+            ) : error ? (
+              <Paper className="p-6 my-4" elevation={2}>
+                <Typography variant="h6" color="error" className="mb-2">
+                  加载讨论失败
+                </Typography>
+                <Typography variant="body1">
+                  {error}
+                </Typography>
+                <Button 
+                  variant="outlined" 
+                  color="primary" 
+                  onClick={() => discussionId && fetchDiscussionDetail(discussionId)} 
+                  className="mt-4"
+                >
+                  重新加载
+                </Button>
+              </Paper>
+            ) : discussion ? (
+              <>
+                <Card className="mb-6">
+                  <CardContent>
+                    <div className="flex justify-between items-start mb-4">
+                      <Typography variant="h5" component="h1">
+                        {discussion.title}
+                      </Typography>
+                      {discussion.questionId && (
                         <Chip 
-                          key={index} 
-                          label={tag} 
-                          size="small" 
-                          color="info" 
-                          variant="outlined"
+                          label={`关联题目: ${discussion.questionTitle || '未知题目'}`} 
+                          color="primary" 
+                          variant="outlined" 
+                          className="ml-2"
                         />
-                      ))}
+                      )}
                     </div>
-                  )}
-                  
-                  <Paper elevation={0} className="p-4 bg-gray-50">
-                    <MarkdownPreview content={discussion.content} />
-                  </Paper>
-                </div>
-              </CardContent>
-            </Card>
 
-            <div className="mb-6">
-              <Typography variant="h6" className="mb-4">
-                回复（{replies.length}）
-              </Typography>
-              
-              {replies.length === 0 ? (
-                <Paper className="p-4 text-center" variant="outlined">
-                  <Typography variant="body1" color="textSecondary">
-                    暂无回复，成为第一个回复的人吧！
-                  </Typography>
-                </Paper>
-              ) : (
-                replies.map((reply) => (
-                  <Paper key={reply.id} className="p-4 mb-4" variant="outlined">
-                    <div className="flex items-center mb-3">
+                    <div className="flex items-center mb-4">
                       <Avatar 
-                        src={reply.author?.avatar} 
+                        src={discussion.author?.avatar} 
                         className="mr-2"
                       >
-                        {reply.author?.name?.charAt(0) || '?'}
+                        {discussion.author?.name?.charAt(0) || '?'}
                       </Avatar>
                       <div>
-                        <Typography variant="subtitle2">
-                          {reply.author?.name || '未知用户'}
+                        <Typography variant="subtitle1">
+                          {discussion.author?.name || '未知用户'}
                           <Chip 
-                            label={reply.author?.role === 'teacher' ? '教师' : '学生'} 
+                            label={discussion.author?.role === 'teacher' ? '教师' : '学生'} 
                             size="small" 
-                            color={reply.author?.role === 'teacher' ? 'secondary' : 'default'} 
+                            color={discussion.author?.role === 'teacher' ? 'secondary' : 'default'} 
                             className="ml-2"
                           />
                         </Typography>
                         <Typography variant="body2" color="textSecondary">
-                          {formatDate(reply.createdAt)}
+                          {formatDate(discussion.createdAt)}
                         </Typography>
                       </div>
                     </div>
-                    
-                    <MarkdownPreview content={reply.content} />
-                  </Paper>
-                ))
-              )}
-            </div>
 
-            <div className="mb-6">
-              <Typography variant="h6" className="mb-2">
-                添加回复
-              </Typography>
-              <TextField
-                fullWidth
-                multiline
-                rows={4}
-                placeholder="写下你的回复..."
-                value={replyContent}
-                onChange={(e) => setReplyContent(e.target.value)}
-                variant="outlined"
-                className="mb-3"
-                error={replyContent.trim() === ''}
-                helperText={replyContent.trim() === '' ? '回复内容不能为空' : '支持Markdown格式'}
-              />
-              <Button
-                variant="contained"
-                color="primary"
-                startIcon={<ReplyIcon />}
-                onClick={handleSubmitReply}
-                disabled={replyLoading || replyContent.trim() === ''}
-              >
-                {replyLoading ? <CircularProgress size={24} color="inherit" /> : '发表回复'}
-              </Button>
-            </div>
-          </>
-        ) : (
-          <Paper className="p-6 my-4" elevation={2}>
-            <Typography variant="h6" color="error">
-              未找到讨论
-            </Typography>
-            <Typography variant="body1" className="mt-2">
-              无法加载讨论内容，请确认讨论ID是否正确，或返回讨论列表。
-            </Typography>
-            <Button 
-              variant="contained" 
-              color="primary" 
-              onClick={handleGoBack}
-              className="mt-4"
-            >
-              返回讨论列表
-            </Button>
-          </Paper>
-        )}
+                    <div className="mb-4">
+                      {Array.isArray(discussion.tags) && discussion.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-3">
+                          {discussion.tags.map((tag, index) => (
+                            <Chip 
+                              key={index} 
+                              label={tag} 
+                              size="small" 
+                              color="info" 
+                              variant="outlined"
+                            />
+                          ))}
+                        </div>
+                      )}
+                      
+                      <Paper elevation={0} className="p-4 bg-gray-50">
+                        <MarkdownPreview content={discussion.content} />
+                      </Paper>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <div className="mb-6">
+                  <Typography variant="h6" className="mb-4">
+                    回复（{replies.length}）
+                  </Typography>
+                  
+                  {replies.length === 0 ? (
+                    <Paper className="p-4 text-center" variant="outlined">
+                      <Typography variant="body1" color="textSecondary">
+                        暂无回复，成为第一个回复的人吧！
+                      </Typography>
+                    </Paper>
+                  ) : (
+                    replies.map((reply) => (
+                      <Paper key={reply.id} className="p-4 mb-4" variant="outlined">
+                        <div className="flex items-center mb-3">
+                          <Avatar 
+                            src={reply.author?.avatar} 
+                            className="mr-2"
+                          >
+                            {reply.author?.name?.charAt(0) || '?'}
+                          </Avatar>
+                          <div>
+                            <Typography variant="subtitle2">
+                              {reply.author?.name || '未知用户'}
+                              <Chip 
+                                label={reply.author?.role === 'teacher' ? '教师' : '学生'} 
+                                size="small" 
+                                color={reply.author?.role === 'teacher' ? 'secondary' : 'default'} 
+                                className="ml-2"
+                              />
+                            </Typography>
+                            <Typography variant="body2" color="textSecondary">
+                              {formatDate(reply.createdAt)}
+                            </Typography>
+                          </div>
+                        </div>
+                        
+                        <MarkdownPreview content={reply.content} />
+                      </Paper>
+                    ))
+                  )}
+                </div>
+
+                <div className="mb-6">
+                  <Typography variant="h6" className="mb-2">
+                    添加回复
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={4}
+                    placeholder="写下你的回复..."
+                    value={replyContent}
+                    onChange={(e) => setReplyContent(e.target.value)}
+                    variant="outlined"
+                    className="mb-3"
+                    error={replyContent.trim() === ''}
+                    helperText={replyContent.trim() === '' ? '回复内容不能为空' : '支持Markdown格式'}
+                  />
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    startIcon={<ReplyIcon />}
+                    onClick={handleSubmitReply}
+                    disabled={replyLoading || replyContent.trim() === ''}
+                  >
+                    {replyLoading ? <CircularProgress size={24} color="inherit" /> : '发表回复'}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <Paper className="p-6 my-4" elevation={2}>
+                <Typography variant="h6" color="error">
+                  未找到讨论
+                </Typography>
+                <Typography variant="body1" className="mt-2">
+                  无法加载讨论内容，请确认讨论ID是否正确，或返回讨论列表。
+                </Typography>
+                <Button 
+                  variant="contained" 
+                  color="primary" 
+                  onClick={handleGoBack}
+                  className="mt-4"
+                >
+                  返回讨论列表
+                </Button>
+              </Paper>
+            )}
+          </div>
+        </main>
       </div>
     </AuthGuard>
   );

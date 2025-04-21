@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useSelector } from 'react-redux';
 import Link from 'next/link';
 import AuthGuard from '../../../components/AuthGuard';
+import StudentNavBar from '../../../components/StudentNavBar';
 import axios from 'axios';
 
 // Material UI 组件
@@ -223,36 +224,7 @@ export default function StudentExercisesPage() {
   return (
     <AuthGuard allowedRoles={['student']}>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        {/* 顶部导航栏 */}
-        <nav className="bg-white dark:bg-gray-800 shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between h-16">
-              <div className="flex">
-                <div className="flex-shrink-0 flex items-center">
-                  <span className="text-xl font-bold text-blue-600 dark:text-blue-500">
-                    智能答题系统
-                  </span>
-                </div>
-                <div className="hidden sm:ml-6 sm:flex sm:items-center space-x-4">
-                  <Link href="/dashboard/student" className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700">
-                    仪表盘
-                  </Link>
-                  <Link href="/dashboard/student/exercises" className="px-3 py-2 rounded-md text-sm font-medium text-blue-700 bg-blue-50 dark:text-blue-300 dark:bg-blue-900">
-                    我的练习
-                  </Link>
-                  <Link href="/dashboard/student/exams" className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700">
-                    我的考试
-                  </Link>
-                  <Link href="/dashboard/profile" className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700">
-                    个人中心
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </div>
-        </nav>
-
-        {/* 主内容区 */}
+        <StudentNavBar />
         <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
           <div className="px-4 py-6 sm:px-0">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">

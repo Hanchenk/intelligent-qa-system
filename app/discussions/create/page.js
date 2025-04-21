@@ -19,12 +19,14 @@ import {
   FormHelperText,
   Box,
   Tabs,
-  Tab
+  Tab,
+  Container
 } from '@mui/material';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import SendIcon from '@mui/icons-material/Send';
 import AuthGuard from '../AuthGuard';
 import MarkdownEditor from '../MarkdownEditor';
+import StudentNavBar from '../../components/StudentNavBar';
 
 // 调整API路径格式
 const ensureCorrectApiUrl = (url) => {
@@ -218,9 +220,10 @@ export default function CreateDiscussionPage() {
   };
 
   return (
-    <AuthGuard allowedRoles={['student']}>
+    <AuthGuard>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <StudentNavBar />
+        <Container maxWidth="md" className="py-8">
           <div className="px-4 py-6 sm:px-0">
             <div className="mb-6">
               <Button 
@@ -381,7 +384,7 @@ export default function CreateDiscussionPage() {
               </Box>
             </Paper>
           </div>
-        </main>
+        </Container>
       </div>
     </AuthGuard>
   );
