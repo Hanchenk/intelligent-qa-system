@@ -27,6 +27,7 @@ import SendIcon from '@mui/icons-material/Send';
 import AuthGuard from '../AuthGuard';
 import MarkdownEditor from '../MarkdownEditor';
 import StudentNavBar from '../../components/StudentNavBar';
+import TeacherNavBar from '../../components/TeacherNavBar';
 
 // 调整API路径格式
 const ensureCorrectApiUrl = (url) => {
@@ -222,7 +223,7 @@ export default function CreateDiscussionPage() {
   return (
     <AuthGuard>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <StudentNavBar />
+        {user?.role === 'teacher' ? <TeacherNavBar /> : <StudentNavBar />}
         <Container maxWidth="md" className="py-8">
           <div className="px-4 py-6 sm:px-0">
             <div className="mb-6">

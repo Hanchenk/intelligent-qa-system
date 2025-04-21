@@ -51,7 +51,7 @@ router.get('/', protect, async (req, res) => {
       .skip(skip)
       .limit(parseInt(limit))
       .sort({ createdAt: -1 })
-      .populate('author', 'username')
+      .populate('author', 'username role')
       .populate('question', 'title');
 
     const total = await Discussion.countDocuments(query);
@@ -84,9 +84,9 @@ router.get('/', protect, async (req, res) => {
 router.get('/:id', protect, async (req, res) => {
   try {
     const discussion = await Discussion.findById(req.params.id)
-      .populate('author', 'username')
+      .populate('author', 'username role')
       .populate('question', 'title')
-      .populate('replies.author', 'username');
+      .populate('replies.author', 'username role');
 
     if (!discussion) {
       return res.status(404).json({
@@ -142,8 +142,8 @@ router.post('/:id/replies', protect, async (req, res) => {
 
     // 重新查询以获取填充的作者信息
     const updatedDiscussion = await Discussion.findById(req.params.id)
-      .populate('author', 'username')
-      .populate('replies.author', 'username');
+      .populate('author', 'username role')
+      .populate('replies.author', 'username role');
 
     res.json({
       success: true,

@@ -10,6 +10,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
 import AuthGuard from './AuthGuard';
 import StudentNavBar from '../components/StudentNavBar';
+import TeacherNavBar from '../components/TeacherNavBar';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
@@ -153,7 +154,7 @@ export default function DiscussionsPage() {
   return (
     <AuthGuard>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <StudentNavBar />
+        {user?.role === 'teacher' ? <TeacherNavBar /> : <StudentNavBar />}
         <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
           <div className="px-4 py-6 sm:px-0">
             <div className="flex justify-between items-center mb-6">

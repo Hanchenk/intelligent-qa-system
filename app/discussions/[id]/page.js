@@ -23,6 +23,7 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import AuthGuard from '../AuthGuard';
 import MarkdownPreview from '../MarkdownPreview';
 import StudentNavBar from '../../components/StudentNavBar';
+import TeacherNavBar from '../../components/TeacherNavBar';
 
 // 调整API路径格式
 const ensureCorrectApiUrl = (url) => {
@@ -56,6 +57,9 @@ export default function DiscussionDetailPage({ params }) {
   
   useEffect(() => {
     console.log('Discussion ID:', discussionId);
+    console.log('当前用户信息:', user);
+    console.log('localStorage中的角色:', localStorage.getItem('userRole'));
+    
     if (discussionId) {
       fetchDiscussionDetail(discussionId);
     } else {
@@ -183,6 +187,7 @@ export default function DiscussionDetailPage({ params }) {
         // 讨论对象中已包含更新后的回复
         const updatedDiscussion = response.data.discussion;
         if (updatedDiscussion && updatedDiscussion.replies) {
+          console.log('更新后的回复数据:', updatedDiscussion.replies);
           setReplies(updatedDiscussion.replies);
         }
         setReplyContent(''); // 清空输入框
@@ -204,6 +209,7 @@ export default function DiscussionDetailPage({ params }) {
       
       // 测试用：模拟添加回复
       if (user) {
+        console.log('使用当前用户信息创建模拟回复:', user);
         const mockNewReply = {
           _id: Date.now().toString(),
           id: Date.now().toString(),
@@ -214,7 +220,7 @@ export default function DiscussionDetailPage({ params }) {
             id: user.id || 'temp-id',
             username: user.name || '当前用户',
             name: user.name || '当前用户',
-            role: user.role || 'student',
+            role: localStorage.getItem('userRole') || user.role || 'student', // 优先使用localStorage中的角色
             avatar: user.avatar
           }
         };
@@ -250,7 +256,7 @@ export default function DiscussionDetailPage({ params }) {
   return (
     <AuthGuard>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <StudentNavBar />
+        {user?.role === 'teacher' ? <TeacherNavBar /> : <StudentNavBar />}
         
         <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
           <div className="container mx-auto p-4 max-w-4xl">
