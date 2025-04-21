@@ -13,7 +13,7 @@ import TagItem from '../../../components/tags/TagItem';
 import TagForm from '../../../components/tags/TagForm';
 
 // 确保API URL可用
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 const TagsPage = () => {
   const [loading, setLoading] = useState(true);
@@ -28,7 +28,7 @@ const TagsPage = () => {
   const fetchTags = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API_URL}/api/tags`, {
+      const res = await axios.get(`${API_URL}/tags`, {
         params: { search },
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`
@@ -46,7 +46,7 @@ const TagsPage = () => {
 
   const fetchPopularTags = async () => {
     try {
-      const res = await axios.get(`${API_URL}/api/tags/stats/popular`, {
+      const res = await axios.get(`${API_URL}/tags/stats/popular`, {
         params: { limit: 10 },
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`
@@ -79,7 +79,7 @@ const TagsPage = () => {
     if (!window.confirm('确定要删除这个标签吗？')) return;
 
     try {
-      await axios.delete(`${API_URL}/api/tags/${id}`, {
+      await axios.delete(`${API_URL}/tags/${id}`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }
@@ -108,7 +108,7 @@ const TagsPage = () => {
       if (editingTag) {
         // 更新标签
         await axios.put(
-          `${API_URL}/api/tags/${editingTag._id}`,
+          `${API_URL}/tags/${editingTag._id}`,
           tagData,
           {
             headers: {
@@ -120,7 +120,7 @@ const TagsPage = () => {
       } else {
         // 创建新标签
         await axios.post(
-          `${API_URL}/api/tags`,
+          `${API_URL}/tags`,
           tagData,
           {
             headers: {
