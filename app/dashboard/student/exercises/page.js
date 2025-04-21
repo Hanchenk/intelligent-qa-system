@@ -21,7 +21,12 @@ import {
   TextField,
   InputAdornment,
   Pagination,
-  IconButton
+  IconButton,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  OutlinedInput
 } from '@mui/material';
 
 // Material Icons
@@ -29,6 +34,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import HistoryIcon from '@mui/icons-material/History';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
+import FilterListIcon from '@mui/icons-material/FilterList';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -43,112 +49,142 @@ export default function StudentExercisesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  
-  // 模拟练习数据
-  const mockExercises = [
-    {
-      id: '1',
-      title: '前端基础知识练习',
-      totalQuestions: 20,
-      difficulty: '中等',
-      tags: ['JavaScript', 'HTML', 'CSS'],
-      completedCount: 423,
-      description: '涵盖前端开发基础知识，包括HTML、CSS和JavaScript的基本概念和常见问题。'
-    },
-    {
-      id: '2',
-      title: 'JavaScript进阶练习',
-      totalQuestions: 15,
-      difficulty: '困难',
-      tags: ['JavaScript', '闭包', '原型链'],
-      completedCount: 246,
-      description: '针对JavaScript高级特性的练习，包括闭包、原型链、异步编程等内容。'
-    },
-    {
-      id: '3',
-      title: 'React基础知识测试',
-      totalQuestions: 25,
-      difficulty: '简单',
-      tags: ['React', '组件', 'Hooks'],
-      completedCount: 587,
-      description: '测试React框架的基础知识，包括组件生命周期、Hooks使用等内容。'
-    },
-    {
-      id: '4',
-      title: '后端开发基础练习',
-      totalQuestions: 18,
-      difficulty: '中等',
-      tags: ['Node.js', 'Express', 'MongoDB'],
-      completedCount: 312,
-      description: '后端开发基础知识，包括Node.js、Express框架和MongoDB数据库的使用。'
-    },
-    {
-      id: '5',
-      title: '算法与数据结构练习',
-      totalQuestions: 30,
-      difficulty: '困难',
-      tags: ['算法', '数据结构', '编程题'],
-      completedCount: 195,
-      description: '涵盖常见算法和数据结构的练习题，包括排序、查找、图论等内容。'
-    },
-    {
-      id: '6',
-      title: '网络协议基础知识',
-      totalQuestions: 22,
-      difficulty: '中等',
-      tags: ['HTTP', 'TCP/IP', '网络安全'],
-      completedCount: 267,
-      description: '测试网络协议基础知识，包括HTTP、TCP/IP协议和常见网络安全问题。'
-    }
-  ];
+  const [difficulty, setDifficulty] = useState('all');
+  const [selectedTags, setSelectedTags] = useState([]);
+  const [availableTags, setAvailableTags] = useState([]);
   
   // 加载练习数据
   useEffect(() => {
-    // 模拟API请求
-    setLoading(true);
+    const fetchExercises = async () => {
+      setLoading(true);
+      
+      try {
+        // 构建查询参数
+        const params = {
+          page: currentPage,
+          limit: 6
+        };
+        
+        if (searchTerm) {
+          params.search = searchTerm;
+        }
+        
+        if (difficulty && difficulty !== 'all') {
+          params.difficulty = difficulty;
+        }
+        
+        if (selectedTags.length > 0) {
+          params.tags = selectedTags.join(',');
+        }
+        
+        // 从API获取数据
+        const response = await axios.get(`${API_URL}/api/questions`, {
+          headers: { Authorization: `Bearer ${token}` },
+          params
+        });
+        
+        // 将API返回的题目转换为练习形式
+        const questionData = response.data.data || [];
+        const exerciseData = transformQuestionsToExercises(questionData);
+        
+        setExercises(exerciseData);
+        setTotalPages(response.data.pagination?.totalPages || 1);
+      } catch (err) {
+        console.error('获取题目列表失败:', err);
+        // 如果API请求失败，设置空数据
+        setExercises([]);
+        setTotalPages(1);
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    // 在实际项目中，这里应该是从API获取数据
-    // const fetchExercises = async () => {
-    //   try {
-    //     const response = await axios.get(`${API_URL}/api/exercises`, {
-    //       headers: { Authorization: `Bearer ${token}` }
-    //     });
-    //     setExercises(response.data.data || []);
-    //     setTotalPages(response.data.pagination?.totalPages || 1);
-    //   } catch (err) {
-    //     console.error('获取练习列表失败:', err);
-    //     setExercises(mockExercises);
-    //     setTotalPages(Math.ceil(mockExercises.length / 6));
-    //   }
-    // };
+    // 加载可用标签
+    const fetchTags = async () => {
+      try {
+        const response = await axios.get(`${API_URL}/api/tags`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setAvailableTags(response.data.data || []);
+      } catch (err) {
+        console.error('获取标签列表失败:', err);
+        setAvailableTags([]);
+      }
+    };
     
-    // 使用模拟数据
-    setTimeout(() => {
-      setExercises(mockExercises);
-      setTotalPages(Math.ceil(mockExercises.length / 6));
-      setLoading(false);
-    }, 1000);
+    fetchExercises();
+    fetchTags();
+  }, [currentPage, difficulty, selectedTags, token]);
+  
+  // 将题目数据转换为练习格式
+  const transformQuestionsToExercises = (questions) => {
+    // 按标签分组题目
+    const groupedQuestions = {};
     
-    // fetchExercises();
-  }, []);
+    questions.forEach(question => {
+      const mainTag = question.tags && question.tags.length > 0 
+        ? question.tags[0].name 
+        : '未分类';
+      
+      if (!groupedQuestions[mainTag]) {
+        groupedQuestions[mainTag] = {
+          questions: [],
+          difficulty: question.difficulty,
+          tags: []
+        };
+      }
+      
+      groupedQuestions[mainTag].questions.push(question);
+      
+      // 收集所有标签
+      if (question.tags) {
+        question.tags.forEach(tag => {
+          if (!groupedQuestions[mainTag].tags.includes(tag.name)) {
+            groupedQuestions[mainTag].tags.push(tag.name);
+          }
+        });
+      }
+    });
+    
+    // 转换为练习格式
+    return Object.entries(groupedQuestions).map(([tag, data], index) => ({
+      id: `exercise-${index}`,
+      title: `${tag}练习`,
+      totalQuestions: data.questions.length,
+      difficulty: data.difficulty || '中等',
+      tags: data.tags,
+      completedCount: Math.floor(Math.random() * 500) + 100, // 模拟完成人数
+      description: `针对${tag}相关知识的练习，包含${data.questions.length}道题目。`,
+      questionIds: data.questions.map(q => q._id) // 保存题目ID列表，用于开始练习
+    }));
+  };
   
   // 处理搜索
   const handleSearch = (e) => {
     e.preventDefault();
-    // 在实际项目中，这里应该触发API请求
-    // 现在我们只是在前端过滤
-    
-    const filtered = mockExercises.filter(exercise => 
-      exercise.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      exercise.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-    
-    setExercises(filtered);
+    setCurrentPage(1); // 重置页码
+    // 搜索由useEffect处理
   };
   
   // 处理开始练习
   const handleStartExercise = (exerciseId) => {
-    router.push(`/dashboard/student/exercises/${exerciseId}`);
+    // 找到选中的练习
+    const selectedExercise = exercises.find(ex => ex.id === exerciseId);
+    
+    if (selectedExercise && selectedExercise.questionIds && selectedExercise.questionIds.length > 0) {
+      // 保存练习信息到本地存储
+      localStorage.setItem('currentExercise', JSON.stringify({
+        id: exerciseId,
+        title: selectedExercise.title,
+        questionIds: selectedExercise.questionIds,
+        tags: selectedExercise.tags
+      }));
+      
+      // 跳转到练习页面
+      router.push(`/dashboard/student/exercises/${exerciseId}`);
+    } else {
+      alert('该练习中没有题目');
+    }
   };
   
   // 渲染难度标签
@@ -170,6 +206,18 @@ export default function StudentExercisesPage() {
     }
     
     return <Chip size="small" label={difficulty} color={color} className="ml-2" />;
+  };
+  
+  // 处理难度筛选变化
+  const handleDifficultyChange = (event) => {
+    setDifficulty(event.target.value);
+    setCurrentPage(1); // 重置页码
+  };
+  
+  // 处理标签筛选变化
+  const handleTagChange = (event) => {
+    setSelectedTags(event.target.value);
+    setCurrentPage(1); // 重置页码
   };
 
   return (
@@ -214,23 +262,65 @@ export default function StudentExercisesPage() {
                   我的练习
                 </Typography>
                 
-                <Box component="form" onSubmit={handleSearch} className="w-full md:w-auto">
-                  <TextField
-                    size="small"
-                    placeholder="搜索练习..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    InputProps={{
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <IconButton type="submit" edge="end">
-                            <SearchIcon />
-                          </IconButton>
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                </Box>
+                <div className="flex flex-col md:flex-row gap-3">
+                  {/* 筛选选项 */}
+                  <FormControl size="small" style={{ minWidth: 120 }}>
+                    <InputLabel id="difficulty-select-label">难度</InputLabel>
+                    <Select
+                      labelId="difficulty-select-label"
+                      value={difficulty}
+                      onChange={handleDifficultyChange}
+                      label="难度"
+                    >
+                      <MenuItem value="all">全部</MenuItem>
+                      <MenuItem value="简单">简单</MenuItem>
+                      <MenuItem value="中等">中等</MenuItem>
+                      <MenuItem value="困难">困难</MenuItem>
+                    </Select>
+                  </FormControl>
+                  
+                  <FormControl size="small" style={{ minWidth: 150 }}>
+                    <InputLabel id="tags-select-label">标签</InputLabel>
+                    <Select
+                      labelId="tags-select-label"
+                      multiple
+                      value={selectedTags}
+                      onChange={handleTagChange}
+                      input={<OutlinedInput label="标签" />}
+                      renderValue={(selected) => (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                          {selected.map((value) => (
+                            <Chip key={value} label={value} size="small" />
+                          ))}
+                        </Box>
+                      )}
+                    >
+                      {availableTags.map((tag) => (
+                        <MenuItem key={tag._id} value={tag._id}>
+                          {tag.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  
+                  <Box component="form" onSubmit={handleSearch} className="w-full md:w-auto">
+                    <TextField
+                      size="small"
+                      placeholder="搜索练习..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      InputProps={{
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton type="submit" edge="end">
+                              <SearchIcon />
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  </Box>
+                </div>
               </div>
               
               {loading ? (

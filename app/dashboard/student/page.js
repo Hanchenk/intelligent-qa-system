@@ -6,11 +6,65 @@ import { useDispatch, useSelector } from 'react-redux';
 import Link from 'next/link';
 import { logout } from '../../redux/features/authSlice';
 import AuthGuard from '../../components/AuthGuard';
+import axios from 'axios';
+import { CircularProgress } from '@mui/material';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 export default function StudentDashboard() {
   const router = useRouter();
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
+  const [stats, setStats] = useState({
+    progressPercentage: 0,
+    upcomingExamCount: 0,
+    mistakeCount: 0
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  // 获取统计数据
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!user) return;
+      
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      
+      setLoading(true);
+      setError(null);
+      
+      try {
+        const response = await axios.get(`${API_URL}/api/stats/student-dashboard`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        if (response.data.success) {
+          setStats({
+            progressPercentage: response.data.stats.progressPercentage || 0,
+            upcomingExamCount: response.data.stats.upcomingExamCount || 0,
+            mistakeCount: response.data.stats.mistakeCount || 0
+          });
+        } else {
+          throw new Error(response.data.message || '获取统计数据失败');
+        }
+      } catch (err) {
+        console.error('获取统计数据失败:', err);
+        setError('获取统计数据失败，请刷新页面重试');
+        
+        // 设置备用统计数据
+        setStats({
+          progressPercentage: 0,
+          upcomingExamCount: 0,
+          mistakeCount: 0
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchStats();
+  }, [user]);
   
   const handleLogout = async () => {
     try {
@@ -94,7 +148,11 @@ export default function StudentDashboard() {
                         </dt>
                         <dd>
                           <div className="text-lg font-medium text-gray-900 dark:text-white">
-                            65%
+                            {loading ? (
+                              <CircularProgress size={20} />
+                            ) : (
+                              `${stats.progressPercentage}%`
+                            )}
                           </div>
                         </dd>
                       </div>
@@ -124,7 +182,11 @@ export default function StudentDashboard() {
                         </dt>
                         <dd>
                           <div className="text-lg font-medium text-gray-900 dark:text-white">
-                            2个待完成
+                            {loading ? (
+                              <CircularProgress size={20} />
+                            ) : (
+                              `${stats.upcomingExamCount}个待完成`
+                            )}
                           </div>
                         </dd>
                       </div>
@@ -154,7 +216,11 @@ export default function StudentDashboard() {
                         </dt>
                         <dd>
                           <div className="text-lg font-medium text-gray-900 dark:text-white">
-                            24题
+                            {loading ? (
+                              <CircularProgress size={20} />
+                            ) : (
+                              `${stats.mistakeCount}题`
+                            )}
                           </div>
                         </dd>
                       </div>

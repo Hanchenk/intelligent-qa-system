@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Submission = require('../models/Submission');
 const Question = require('../models/Question');
+const MistakeRecord = require('../models/MistakeRecord');
 const { protect } = require('../middleware/auth');
 
 // @route   POST /api/submissions
@@ -24,26 +25,43 @@ router.post('/', protect, async (req, res) => {
     let isCorrect = false;
     let score = 0;
 
-    if (question.type === 'objective') {
-      // 客观题判分
-      if (Array.isArray(question.answer) && Array.isArray(userAnswer)) {
-        // 多选题
-        isCorrect = question.answer.length === userAnswer.length &&
-          question.answer.every(ans => userAnswer.includes(ans));
-      } else {
-        // 单选题
-        isCorrect = question.answer === userAnswer;
+    if (question.type === '单选题' || question.type === '多选题') {
+      // 选择题判分
+      if (question.type === '多选题' && Array.isArray(userAnswer)) {
+        // 检查每个正确选项是否被选中，且没有选中错误选项
+        const correctOptions = question.options
+          .filter(opt => opt.isCorrect)
+          .map(opt => opt._id.toString());
+        
+        const userSelectedIds = Array.isArray(userAnswer) 
+          ? userAnswer.map(id => id.toString()) 
+          : [];
+        
+        isCorrect = correctOptions.length === userSelectedIds.length &&
+          correctOptions.every(id => userSelectedIds.includes(id)) &&
+          userSelectedIds.every(id => correctOptions.includes(id));
+      } else if (question.type === '单选题') {
+        // 单选题，检查选中的选项是否是正确选项
+        const correctOptionId = question.options
+          .find(opt => opt.isCorrect)?._id?.toString();
+        
+        isCorrect = correctOptionId === userAnswer.toString();
       }
-      score = isCorrect ? 100 : 0;
+    } else if (question.type === '判断题') {
+      // 判断题判分
+      isCorrect = question.correctAnswer === userAnswer;
     } else {
-      // 主观题默认需要人工评分或LLM评分
-      // 这里暂时设为0分，后续会通过LLM进行评分
-      score = 0;
+      // 其他题型（填空题、简答题、编程题等）暂时使用人工评分或LLM评分
+      // 这里默认设为未正确，等待评分
+      isCorrect = false;
     }
+
+    // 根据正确与否设置分数
+    score = isCorrect ? question.score || 100 : 0;
 
     // 创建提交记录
     const submission = new Submission({
-      user: req.user._id,
+      user: req.user.id,
       question: questionId,
       userAnswer,
       isCorrect,
@@ -52,6 +70,26 @@ router.post('/', protect, async (req, res) => {
     });
 
     await submission.save();
+
+    // 如果答案错误，添加到错题本
+    if (!isCorrect) {
+      try {
+        // 使用upsert操作，如果记录已存在则更新，不存在则创建
+        await MistakeRecord.findOneAndUpdate(
+          { user: req.user.id, question: questionId },
+          { 
+            user: req.user.id, 
+            question: questionId,
+            submission: submission._id,
+            updatedAt: new Date()
+          },
+          { upsert: true, new: true }
+        );
+      } catch (err) {
+        console.error('添加错题记录失败:', err);
+        // 不影响主流程，所以这里只记录错误，不返回错误响应
+      }
+    }
 
     res.status(201).json({
       success: true,

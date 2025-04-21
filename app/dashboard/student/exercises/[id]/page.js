@@ -70,125 +70,119 @@ export default function ExercisePage({ params }) {
   const [isFinishDialogOpen, setIsFinishDialogOpen] = useState(false);
   const [remainingTime, setRemainingTime] = useState(null);
   
-  // 模拟练习数据
-  const mockExercises = {
-    '1': {
-      id: '1',
-      title: '前端基础知识练习',
-      totalQuestions: 5,
-      timeLimit: 15, // 分钟
-      description: '涵盖前端开发基础知识，包括HTML、CSS和JavaScript的基本概念和常见问题。',
-      tags: ['前端', 'Web开发', 'HTML', 'CSS', 'JavaScript'],
-      questions: [
-        {
-          id: 'q1',
-          title: '以下哪个HTML标签用于创建无序列表？',
-          type: '单选题',
-          tags: ['HTML', '标签'],
-          options: [
-            { id: 'a', content: '<ol>' },
-            { id: 'b', content: '<ul>' },
-            { id: 'c', content: '<li>' },
-            { id: 'd', content: '<dl>' }
-          ],
-          correctAnswer: 'b',
-          explanation: '<ul>标签用于创建无序列表，而<ol>用于创建有序列表。<li>标签用于定义列表项，<dl>用于创建定义列表。'
-        },
-        {
-          id: 'q2',
-          title: '在CSS中，哪个属性用于设置元素的文本颜色？',
-          type: '单选题',
-          tags: ['CSS', '属性'],
-          options: [
-            { id: 'a', content: 'text-color' },
-            { id: 'b', content: 'font-color' },
-            { id: 'c', content: 'color' },
-            { id: 'd', content: 'text-style' }
-          ],
-          correctAnswer: 'c',
-          explanation: 'CSS中，color属性用于设置文本颜色。text-color、font-color和text-style不是有效的CSS属性。'
-        },
-        {
-          id: 'q3',
-          title: '在JavaScript中，以下哪个方法用于添加元素到数组末尾？',
-          type: '单选题',
-          tags: ['JavaScript', '数组', '方法'],
-          options: [
-            { id: 'a', content: 'push()' },
-            { id: 'b', content: 'append()' },
-            { id: 'c', content: 'add()' },
-            { id: 'd', content: 'insert()' }
-          ],
-          correctAnswer: 'a',
-          explanation: 'JavaScript中，push()方法用于将一个或多个元素添加到数组的末尾，并返回新的长度。'
-        },
-        {
-          id: 'q4',
-          title: '以下哪些是JavaScript中的基本数据类型？',
-          type: '多选题',
-          tags: ['JavaScript', '数据类型'],
-          options: [
-            { id: 'a', content: 'String' },
-            { id: 'b', content: 'Array' },
-            { id: 'c', content: 'Number' },
-            { id: 'd', content: 'Boolean' },
-            { id: 'e', content: 'Object' }
-          ],
-          correctAnswer: ['a', 'c', 'd'],
-          explanation: 'JavaScript中的基本数据类型包括String、Number、Boolean、Undefined、Null和Symbol。Array和Object是引用类型。'
-        },
-        {
-          id: 'q5',
-          title: '编写一个JavaScript函数，接受一个数组参数，返回该数组中的最大值。',
-          type: '编程题',
-          tags: ['JavaScript', '函数', '算法'],
-          correctAnswer: `function findMax(arr) {
-  return Math.max(...arr);
-}`,
-          explanation: '使用Math.max()方法和扩展运算符(...)可以轻松找到数组中的最大值。另一种方法是使用reduce()或者手动循环比较。'
-        }
-      ]
-    }
-  };
-  
   // 加载练习数据
   useEffect(() => {
-    const fetchExercise = () => {
+    const fetchExercise = async () => {
       setLoading(true);
       
-      // 模拟API请求
-      setTimeout(() => {
-        const exerciseData = mockExercises[exerciseId];
+      try {
+        // 从本地存储获取练习信息
+        const exerciseDataString = localStorage.getItem('currentExercise');
         
-        if (exerciseData) {
-          setExercise(exerciseData);
-          setQuestions(exerciseData.questions);
-          
-          // 初始化用户答案对象
-          const initialAnswers = {};
-          exerciseData.questions.forEach(q => {
-            initialAnswers[q.id] = q.type === '多选题' ? [] : '';
-          });
-          setUserAnswers(initialAnswers);
-          
-          // 设置倒计时
-          if (exerciseData.timeLimit) {
-            setRemainingTime(exerciseData.timeLimit * 60); // 转换为秒
-          }
-        } else {
-          // 没有找到对应的练习
-          alert('未找到练习');
+        if (!exerciseDataString) {
+          alert('练习信息不存在');
           router.push('/dashboard/student/exercises');
+          return;
         }
         
+        const exerciseData = JSON.parse(exerciseDataString);
+        
+        if (!exerciseData || !exerciseData.questionIds || exerciseData.questionIds.length === 0) {
+          alert('练习题目不存在');
+          router.push('/dashboard/student/exercises');
+          return;
+        }
+        
+        // 设置练习基本信息
+        setExercise({
+          id: exerciseData.id,
+          title: exerciseData.title,
+          totalQuestions: exerciseData.questionIds.length,
+          timeLimit: 30, // 默认30分钟
+          tags: exerciseData.tags || []
+        });
+        
+        // 设置倒计时
+        setRemainingTime(30 * 60); // 30分钟，转换为秒
+        
+        // 获取题目详情
+        const questionPromises = exerciseData.questionIds.map(questionId => 
+          axios.get(`${API_URL}/api/questions/${questionId}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+        );
+        
+        const questionResponses = await Promise.allSettled(questionPromises);
+        
+        // 处理题目数据
+        const fetchedQuestions = questionResponses
+          .filter(response => response.status === 'fulfilled')
+          .map(response => {
+            const questionData = response.value.data.data;
+            
+            // 将API返回的题目格式转换为本地格式
+            return {
+              id: questionData._id,
+              title: questionData.title,
+              type: questionData.type,
+              tags: questionData.tags?.map(t => t.name) || [],
+              options: Array.isArray(questionData.options) ? questionData.options.map((opt, index) => ({
+                id: String.fromCharCode(97 + index), // a, b, c, d...
+                content: opt.text || opt.content,
+                isCorrect: opt.isCorrect
+              })) : [],
+              correctAnswer: formatCorrectAnswer(questionData),
+              explanation: questionData.explanation || ''
+            };
+          });
+        
+        if (fetchedQuestions.length === 0) {
+          alert('未能获取任何题目');
+          router.push('/dashboard/student/exercises');
+          return;
+        }
+        
+        setQuestions(fetchedQuestions);
+        
+        // 初始化用户答案对象
+        const initialAnswers = {};
+        fetchedQuestions.forEach(q => {
+          initialAnswers[q.id] = q.type === '多选题' ? [] : '';
+        });
+        setUserAnswers(initialAnswers);
+        
         setLoading(false);
-      }, 1000);
+      } catch (error) {
+        console.error('获取练习数据失败:', error);
+        alert('获取练习数据失败，请重试');
+        router.push('/dashboard/student/exercises');
+      }
+    };
+    
+    // 格式化正确答案
+    const formatCorrectAnswer = (question) => {
+      if (question.type === '多选题') {
+        // 对多选题，返回正确选项的ID数组
+        return question.options
+          .filter(opt => opt.isCorrect)
+          .map((_, index) => String.fromCharCode(97 + index));
+      } else if (question.type === '单选题') {
+        // 对单选题，返回正确选项的ID
+        const correctIndex = question.options.findIndex(opt => opt.isCorrect);
+        return correctIndex >= 0 ? String.fromCharCode(97 + correctIndex) : '';
+      } else if (question.type === '判断题') {
+        // 判断题返回"true"或"false"
+        return question.answer === true || question.answer === 'true' ? 'true' : 'false';
+      } else {
+        // 其他题型返回答案文本
+        return question.answer || '';
+      }
     };
     
     if (exerciseId) {
       fetchExercise();
     }
-  }, [exerciseId, router]);
+  }, [exerciseId, router, token]);
   
   // 倒计时
   useEffect(() => {
