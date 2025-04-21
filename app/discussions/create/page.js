@@ -32,7 +32,7 @@ import TeacherNavBar from '../../components/TeacherNavBar';
 // 调整API路径格式
 const ensureCorrectApiUrl = (url) => {
   // 检查API URL是否正确包含/api前缀
-  if (!url) return 'http://localhost:3001';
+  if (!url) return 'http://localhost:3001/api';
   
   console.log('检查API URL:', url);
   
@@ -41,8 +41,8 @@ const ensureCorrectApiUrl = (url) => {
     return url;
   }
   
-  // 否则用标准格式
-  return url;
+  // 否则添加/api
+  return `${url}/api`;
 };
 
 // 检查API URL配置是否包含完整路径
@@ -184,37 +184,66 @@ export default function CreateDiscussionPage() {
       };
       
       console.log('Creating discussion with data:', discussionData);
+      console.log('Using API URL:', `${API_URL}/discussions`);
+      console.log('Authorization token available:', !!token);
       
-      const response = await axios.post(`${API_URL}/discussions`, discussionData, {
-        headers: { Authorization: `Bearer ${token}` },
-        timeout: 10000
-      });
-      
-      console.log('Create discussion response:', response.data);
-      
-      if (response.data.success) {
-        const discussionId = response.data.discussion.id;
-        console.log('Discussion created successfully, redirecting to:', `/discussions/${discussionId}`);
-        router.push(`/discussions/${discussionId}`);
-      } else {
-        throw new Error(response.data.message || '创建讨论失败');
+      try {
+        const response = await axios.post(`${API_URL}/discussions`, discussionData, {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 10000
+        });
+        
+        console.log('Create discussion response:', response.data);
+        
+        if (response.data.success) {
+          const discussionId = response.data.discussion._id || response.data.discussion.id;
+          console.log('Discussion created successfully, redirecting to:', `/discussions/${discussionId}`);
+          router.push(`/discussions/${discussionId}`);
+        } else {
+          throw new Error(response.data.message || '创建讨论失败');
+        }
+      } catch (axiosError) {
+        console.error('Axios请求错误:', axiosError);
+        console.error('错误响应数据:', axiosError.response?.data);
+        console.error('错误状态码:', axiosError.response?.status);
+        throw axiosError;
       }
     } catch (err) {
       console.error('创建讨论失败:', err);
       
       // 使用更友好的错误提示
       let errorMessage = '创建讨论失败，请重试';
+      
       if (err.code === 'ECONNABORTED') {
         errorMessage = '网络请求超时，请检查您的网络连接';
-      } else if (err.response && err.response.status >= 500) {
-        errorMessage = '服务器暂时不可用，请稍后再试';
+      } else if (err.response) {
+        if (err.response.status === 401) {
+          errorMessage = '未登录或会话已过期，请重新登录';
+          // 可能需要重定向到登录页面
+          setTimeout(() => {
+            router.push('/auth/login');
+          }, 2000);
+        } else if (err.response.status === 403) {
+          errorMessage = '您没有权限执行此操作';
+        } else if (err.response.status >= 500) {
+          errorMessage = `服务器错误 (${err.response.status})，请稍后再试`;
+          console.error('服务器返回的错误信息:', err.response.data);
+        } else {
+          // 其他HTTP错误
+          errorMessage = `请求失败 (${err.response.status}): ${err.response.data?.message || '未知错误'}`;
+        }
+      } else if (err.request) {
+        // 请求发出但没有收到响应
+        errorMessage = '无法连接到服务器，请检查您的网络连接';
       }
       
       alert(errorMessage);
       
-      // 测试用：模拟创建成功后跳转到讨论列表
-      console.log('模拟重定向到讨论列表');
-      router.push('/discussions');
+      // 只有在非认证错误的情况下才模拟重定向
+      if (!err.response || (err.response.status !== 401 && err.response.status !== 403)) {
+        console.log('模拟重定向到讨论列表');
+        router.push('/discussions');
+      }
     } finally {
       setSubmitting(false);
     }
