@@ -8,8 +8,8 @@ const geist = Geist({
 });
 
 export const metadata = {
-  title: "智能答题系统",
-  description: "基于深度学习的智能答题系统",
+  title: "课程习题网站",
+  description: "基于深度学习的课程习题网站",
 };
 
 export default function RootLayout({ children }) {

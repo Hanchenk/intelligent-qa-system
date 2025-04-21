@@ -53,52 +53,87 @@ export default function StudentExercisesPage() {
   const [difficulty, setDifficulty] = useState('all');
   const [selectedTags, setSelectedTags] = useState([]);
   const [availableTags, setAvailableTags] = useState([]);
+  const [error, setError] = useState('');
+  const [allExercises, setAllExercises] = useState([]); // 存储所有练习，用于分页
   
+  // 每页显示的卡片数量
+  const itemsPerPage = 18;
+
+  // 计算当前页面应该显示的练习
+  const getCurrentPageExercises = () => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return allExercises.slice(startIndex, endIndex);
+  };
+
   // 加载练习数据
-  useEffect(() => {
-    const fetchExercises = async () => {
-      setLoading(true);
+  const fetchExercises = async () => {
+    setLoading(true);
+    
+    try {
+      // 构建查询参数
+      const params = {
+        page: 1,
+        limit: 50  // 增加获取的题目数量，确保我们能得到所有标签的数据
+      };
       
-      try {
-        // 构建查询参数
-        const params = {
-          page: currentPage,
-          limit: 6
-        };
-        
-        if (searchTerm) {
-          params.search = searchTerm;
-        }
-        
-        if (difficulty && difficulty !== 'all') {
-          params.difficulty = difficulty;
-        }
-        
-        if (selectedTags.length > 0) {
-          params.tags = selectedTags.join(',');
-        }
-        
-        // 从API获取数据
-        const response = await axios.get(`${API_URL}/questions`, {
-          headers: { Authorization: `Bearer ${token}` },
-          params
-        });
-        
-        // 将API返回的题目转换为练习形式
-        const questionData = response.data.data || [];
-        const exerciseData = transformQuestionsToExercises(questionData);
-        
-        setExercises(exerciseData);
-        setTotalPages(response.data.pagination?.totalPages || 1);
-      } catch (err) {
-        console.error('获取题目列表失败:', err);
-        // 如果API请求失败，设置空数据
-        setExercises([]);
-        setTotalPages(1);
-      } finally {
-        setLoading(false);
+      if (difficulty && difficulty !== 'all') {
+        params.difficulty = difficulty;
       }
-    };
+      
+      // 只有当实际选择了标签时才添加标签筛选
+      if (selectedTags && selectedTags.length > 0) {
+        params.tags = selectedTags.join(',');
+      }
+      
+      console.log("请求参数:", params);
+      
+      // 从API获取数据
+      const response = await axios.get(`${API_URL}/questions`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params
+      });
+      
+      console.log("API响应:", response.data);
+      
+      // 将API返回的题目转换为练习形式
+      const questionData = response.data.data || [];
+      const exerciseData = transformQuestionsToExercises(questionData);
+      
+      console.log("转换后的练习数据:", exerciseData);
+      
+      // 在这里应用搜索筛选，而不是在API请求中
+      let filteredExercises = exerciseData;
+      if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        filteredExercises = exerciseData.filter(exercise => 
+          exercise.title.toLowerCase().includes(term) || 
+          exercise.tagName.toLowerCase().includes(term) ||
+          exercise.description.toLowerCase().includes(term)
+        );
+      }
+      
+      setAllExercises(filteredExercises);
+      setTotalPages(Math.ceil(filteredExercises.length / itemsPerPage) || 1);
+      
+      // 计算当前页面显示的练习
+      setExercises(getCurrentPageExercises());
+    } catch (err) {
+      console.error('获取题目列表失败:', err);
+      // 只设置空数据，不使用模拟数据
+      setAllExercises([]);
+      setExercises([]);
+      setTotalPages(1);
+      // 设置错误信息
+      setError('获取练习数据失败，请刷新页面重试或联系管理员');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 初始加载数据
+  useEffect(() => {
+    fetchExercises();
     
     // 加载可用标签
     const fetchTags = async () => {
@@ -113,58 +148,132 @@ export default function StudentExercisesPage() {
       }
     };
     
-    fetchExercises();
     fetchTags();
-  }, [currentPage, difficulty, selectedTags, token]);
-  
+  }, [difficulty, selectedTags, token, searchTerm]); // 移除currentPage依赖
+
+  // 当页码变化时，更新显示的练习
+  useEffect(() => {
+    setExercises(getCurrentPageExercises());
+  }, [currentPage, allExercises]);
+
   // 将题目数据转换为练习格式
   const transformQuestionsToExercises = (questions) => {
-    // 按标签分组题目
-    const groupedQuestions = {};
+    console.log("原始问题数据:", questions);
     
+    // 按标签分组题目
+    const taggedQuestions = {};
+    
+    // 首先收集所有现有的标签集合
     questions.forEach(question => {
-      const mainTag = question.tags && question.tags.length > 0 
-        ? question.tags[0].name 
-        : '未分类';
-      
-      if (!groupedQuestions[mainTag]) {
-        groupedQuestions[mainTag] = {
-          questions: [],
-          difficulty: question.difficulty,
-          tags: []
-        };
-      }
-      
-      groupedQuestions[mainTag].questions.push(question);
-      
-      // 收集所有标签
-      if (question.tags) {
+      if (question.tags && Array.isArray(question.tags)) {
         question.tags.forEach(tag => {
-          if (!groupedQuestions[mainTag].tags.includes(tag.name)) {
-            groupedQuestions[mainTag].tags.push(tag.name);
+          // 处理标签可能是对象或字符串的情况
+          const tagName = typeof tag === 'object' && tag !== null ? 
+            (tag.name || '') : (tag || '');
+            
+          if (tagName && !taggedQuestions[tagName]) {
+            taggedQuestions[tagName] = {
+              questions: [],
+              difficulty: question.difficulty || '中等', // 使用第一个题目的难度作为初始值
+              tags: [tagName]
+            };
           }
         });
       }
     });
     
-    // 转换为练习格式
-    return Object.entries(groupedQuestions).map(([tag, data], index) => ({
-      id: `exercise-${index}`,
-      title: `${tag}练习`,
-      totalQuestions: data.questions.length,
-      difficulty: data.difficulty || '中等',
-      tags: data.tags,
-      completedCount: Math.floor(Math.random() * 500) + 100, // 模拟完成人数
-      description: `针对${tag}相关知识的练习，包含${data.questions.length}道题目。`,
-      questionIds: data.questions.map(q => q._id) // 保存题目ID列表，用于开始练习
-    }));
+    // 然后将所有题目分配到对应的标签练习中
+    questions.forEach(question => {
+      if (question.tags && Array.isArray(question.tags)) {
+        question.tags.forEach(tag => {
+          // 处理标签可能是对象或字符串的情况
+          const tagName = typeof tag === 'object' && tag !== null ? 
+            (tag.name || '') : (tag || '');
+            
+          if (tagName && taggedQuestions[tagName]) {
+            // 避免重复添加同一题目
+            if (!taggedQuestions[tagName].questions.some(q => q._id === question._id)) {
+              taggedQuestions[tagName].questions.push(question);
+            }
+            
+            // 更新难度（取最高难度）
+            if (question.difficulty === '困难') {
+              taggedQuestions[tagName].difficulty = '困难';
+            } else if (question.difficulty === '中等' && taggedQuestions[tagName].difficulty !== '困难') {
+              taggedQuestions[tagName].difficulty = '中等';
+            }
+          }
+        });
+      }
+    });
+    
+    // 添加一个未分类标签，用于没有标签的题目
+    const untaggedQuestions = questions.filter(q => !q.tags || !Array.isArray(q.tags) || q.tags.length === 0);
+    if (untaggedQuestions.length > 0) {
+      taggedQuestions['未分类'] = {
+        questions: untaggedQuestions,
+        difficulty: '中等',
+        tags: ['未分类']
+      };
+    }
+    
+    console.log("分组后的题目:", taggedQuestions);
+    
+    // 转换为练习格式，并按题目数量排序
+    const exerciseList = Object.entries(taggedQuestions).map(([tag, data], index) => {
+      // 计算该组题目的总尝试次数
+      let totalAttempts = 0;
+      data.questions.forEach(question => {
+        if (question.attempts) {
+          totalAttempts += question.attempts;
+        }
+      });
+      
+      return {
+        id: `exercise-${index}`,
+        title: `${tag}练习`,
+        totalQuestions: data.questions.length,
+        difficulty: data.difficulty || '中等',
+        tags: data.tags,
+        tagName: tag, // 保存标签名，方便筛选
+        completedCount: totalAttempts, // 使用总尝试次数
+        description: `包含所有"${tag}"标签的题目，总计${data.questions.length}道题。`,
+        questionIds: data.questions.map(q => q._id) // 保存题目ID列表，用于开始练习
+      };
+    });
+    
+    // 排序：首先按题目数量降序，然后按尝试次数降序
+    exerciseList.sort((a, b) => {
+      if (b.totalQuestions !== a.totalQuestions) {
+        return b.totalQuestions - a.totalQuestions; // 题目数量降序
+      }
+      return b.completedCount - a.completedCount; // 尝试次数降序
+    });
+    
+    return exerciseList;
   };
   
   // 处理搜索
   const handleSearch = (e) => {
     e.preventDefault();
     setCurrentPage(1); // 重置页码
-    // 搜索由useEffect处理
+    
+    console.log("搜索关键词:", searchTerm);
+    // 直接在客户端筛选，不需要重新请求API
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      const filteredExercises = allExercises.filter(exercise => 
+        exercise.title.toLowerCase().includes(term) || 
+        exercise.tagName.toLowerCase().includes(term) ||
+        exercise.description.toLowerCase().includes(term)
+      );
+      setAllExercises(filteredExercises);
+      setTotalPages(Math.ceil(filteredExercises.length / itemsPerPage) || 1);
+      setExercises(filteredExercises.slice(0, itemsPerPage));
+    } else {
+      // 如果搜索词为空，清除筛选
+      fetchExercises();
+    }
   };
   
   // 处理开始练习
@@ -217,7 +326,9 @@ export default function StudentExercisesPage() {
   
   // 处理标签筛选变化
   const handleTagChange = (event) => {
-    setSelectedTags(event.target.value);
+    const values = event.target.value;
+    console.log("选择的标签:", values);
+    setSelectedTags(values);
     setCurrentPage(1); // 重置页码
   };
 
@@ -227,14 +338,19 @@ export default function StudentExercisesPage() {
         <StudentNavBar />
         <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
           <div className="px-4 py-6 sm:px-0">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 sm:p-6">
               {/* 页面标题和搜索栏 */}
               <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
-                <Typography variant="h5" component="h1" className="font-bold mb-4 md:mb-0">
-                  我的练习
-                </Typography>
+                <div>
+                  <Typography variant="h5" component="h1" className="font-bold mb-1">
+                    我的练习
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary" className="mb-4 md:mb-0">
+                    每个标签对应一个练习，包含该标签下的所有题目
+                  </Typography>
+                </div>
                 
-                <div className="flex flex-col md:flex-row gap-3">
+                <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
                   {/* 筛选选项 */}
                   <FormControl size="small" style={{ minWidth: 120 }}>
                     <InputLabel id="difficulty-select-label">难度</InputLabel>
@@ -261,24 +377,29 @@ export default function StudentExercisesPage() {
                       input={<OutlinedInput label="标签" />}
                       renderValue={(selected) => (
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                          {selected.map((value) => (
-                            <Chip key={value} label={value} size="small" />
-                          ))}
+                          {selected.map((value) => {
+                            const tag = availableTags.find(t => t._id === value);
+                            return <Chip key={value} label={tag?.name || value} size="small" />;
+                          })}
                         </Box>
                       )}
                     >
-                      {availableTags.map((tag) => (
-                        <MenuItem key={tag._id} value={tag._id}>
-                          {tag.name}
-                        </MenuItem>
-                      ))}
+                      {availableTags.length > 0 ? (
+                        availableTags.map((tag) => (
+                          <MenuItem key={tag._id} value={tag._id}>
+                            {tag.name}
+                          </MenuItem>
+                        ))
+                      ) : (
+                        <MenuItem disabled>暂无可用标签</MenuItem>
+                      )}
                     </Select>
                   </FormControl>
                   
                   <Box component="form" onSubmit={handleSearch} className="w-full md:w-auto">
                     <TextField
                       size="small"
-                      placeholder="搜索练习..."
+                      placeholder="搜索标签或练习..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       InputProps={{
@@ -292,12 +413,49 @@ export default function StudentExercisesPage() {
                       }}
                     />
                   </Box>
+                  
+                  {(searchTerm || difficulty !== 'all' || selectedTags.length > 0) && (
+                    <Button 
+                      variant="outlined"
+                      size="small"
+                      onClick={() => {
+                        setSearchTerm('');
+                        setDifficulty('all');
+                        setSelectedTags([]);
+                        setCurrentPage(1);
+                        // 重新获取数据
+                        fetchExercises();
+                      }}
+                    >
+                      清除筛选
+                    </Button>
+                  )}
                 </div>
               </div>
               
+              {/* 题目卡片 */}
               {loading ? (
                 <div className="flex justify-center items-center py-20">
-                  <CircularProgress />
+                  <CircularProgress size={40} thickness={4} />
+                  <Typography variant="h6" className="ml-3">加载练习中...</Typography>
+                </div>
+              ) : error ? (
+                <div className="text-center py-12">
+                  <Typography variant="body1" color="error" className="mb-4">
+                    {error}
+                  </Typography>
+                  <Button 
+                    variant="contained" 
+                    onClick={() => {
+                      setCurrentPage(1);
+                      setError('');
+                      setSearchTerm('');
+                      setDifficulty('all');
+                      setSelectedTags([]);
+                    }}
+                  >
+                    重新加载
+                  </Button>
                 </div>
               ) : exercises.length === 0 ? (
                 <div className="text-center py-16">
@@ -308,39 +466,71 @@ export default function StudentExercisesPage() {
                     暂无练习
                   </Typography>
                   <Typography variant="body1" className="text-gray-600 dark:text-gray-300 mb-8 max-w-md mx-auto">
-                    目前没有找到符合条件的练习。请尝试调整搜索条件或稍后再来查看。
+                    {searchTerm || difficulty !== 'all' || selectedTags.length > 0 ? 
+                      '没有找到符合当前筛选条件的练习，请尝试调整筛选条件。' : 
+                      '目前数据库中没有可用的练习题目，请稍后再来查看。'
+                    }
                   </Typography>
                 </div>
               ) : (
                 <>
-                  <Grid container spacing={3}>
+                  <Grid 
+                    container 
+                    spacing={{ xs: 2, sm: 3 }} 
+                    sx={{ mb: 4 }}
+                  >
                     {exercises.map((exercise) => (
-                      <Grid item key={exercise.id} xs={12} sm={6} md={4}>
-                        <Card elevation={2} className="h-full flex flex-col">
+                      <Grid item key={exercise.id} xs={12} sm={6} md={4} lg={4}>
+                        <Card 
+                          elevation={2} 
+                          className="h-full flex flex-col transition-shadow duration-200 hover:shadow-lg"
+                          sx={{ minHeight: '280px' }}
+                        >
                           <CardContent className="flex-grow">
-                            <Typography variant="h6" component="h2" className="font-bold mb-2 flex items-center">
-                              {exercise.title}
+                            <Typography 
+                              variant="h6" 
+                              component="h2" 
+                              className="font-bold mb-2 flex items-center flex-wrap"
+                              sx={{ 
+                                minHeight: '48px',
+                                display: 'flex',
+                                alignItems: 'flex-start'
+                              }}
+                            >
+                              <span className="mr-1">{exercise.title}</span>
                               {renderDifficultyChip(exercise.difficulty)}
                             </Typography>
                             
-                            <Typography variant="body2" color="textSecondary" className="mb-3">
+                            <Typography 
+                              variant="body2" 
+                              color="textSecondary" 
+                              className="mb-3"
+                              sx={{ minHeight: '60px' }}
+                            >
                               {exercise.description}
                             </Typography>
                             
-                            <Box className="flex flex-wrap gap-1 mb-3">
-                              {exercise.tags.map(tag => (
-                                <Chip 
-                                  key={tag} 
-                                  label={tag} 
-                                  size="small" 
-                                  variant="outlined" 
-                                />
-                              ))}
+                            <Box 
+                              className="mb-3"
+                              sx={{ minHeight: '32px' }}
+                            >
+                              <Typography variant="body2" fontWeight="medium" color="primary">
+                                包含题目：{exercise.totalQuestions}题
+                              </Typography>
                             </Box>
                             
-                            <Box className="flex items-center justify-between text-sm text-gray-500">
-                              <span>{exercise.totalQuestions} 题</span>
-                              <span><HistoryIcon fontSize="small" className="mr-1" style={{ verticalAlign: 'middle' }} /> {exercise.completedCount} 人完成</span>
+                            <Box 
+                              className="flex items-center justify-between text-sm text-gray-500"
+                              sx={{ minHeight: '24px' }}
+                            >
+                              <span>
+                                {exercise.completedCount > 0 ? (
+                                  <Box className="flex items-center">
+                                    <HistoryIcon fontSize="small" className="mr-1" style={{ verticalAlign: 'middle' }} />
+                                    <span>{exercise.completedCount} 次尝试</span>
+                                  </Box>
+                                ) : '暂无尝试记录'}
+                              </span>
                             </Box>
                           </CardContent>
                           
@@ -361,12 +551,19 @@ export default function StudentExercisesPage() {
                   </Grid>
                   
                   {totalPages > 1 && (
-                    <Box className="flex justify-center mt-6">
+                    <Box className="flex justify-center mt-8 mb-4">
                       <Pagination 
                         count={totalPages} 
                         page={currentPage}
-                        onChange={(e, page) => setCurrentPage(page)}
+                        onChange={(e, page) => {
+                          setCurrentPage(page);
+                          window.scrollTo(0, 0); // 滚动到页面顶部
+                        }}
                         color="primary"
+                        size="large"
+                        showFirstButton
+                        showLastButton
+                        siblingCount={1}
                       />
                     </Box>
                   )}

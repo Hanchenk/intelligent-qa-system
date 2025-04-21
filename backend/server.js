@@ -33,7 +33,7 @@ app.use('/api/exams', require('./routes/exams'));
 
 // 基础路由
 app.get('/', (req, res) => {
-  res.send('智能答题系统API服务已启动');
+  res.send('课程习题网站API服务已启动');
 });
 
 // 启动服务器

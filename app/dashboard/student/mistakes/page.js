@@ -563,7 +563,7 @@ export default function StudentMistakesPage() {
               <div className="flex">
                 <div className="flex-shrink-0 flex items-center">
                   <span className="text-xl font-bold text-blue-600 dark:text-blue-500">
-                    智能答题系统
+                    课程习题网站
                   </span>
                 </div>
                 <div className="hidden sm:ml-6 sm:flex sm:items-center space-x-4">
