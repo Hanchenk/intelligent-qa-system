@@ -78,7 +78,7 @@ export default function StudentExercisesPage() {
         }
         
         // 从API获取数据
-        const response = await axios.get(`${API_URL}/api/questions`, {
+        const response = await axios.get(`${API_URL}/questions`, {
           headers: { Authorization: `Bearer ${token}` },
           params
         });
@@ -102,7 +102,7 @@ export default function StudentExercisesPage() {
     // 加载可用标签
     const fetchTags = async () => {
       try {
-        const response = await axios.get(`${API_URL}/api/tags`, {
+        const response = await axios.get(`${API_URL}/tags`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setAvailableTags(response.data.data || []);

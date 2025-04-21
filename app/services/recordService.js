@@ -217,7 +217,7 @@ export const saveExerciseRecord = async (record) => {
     localStorage.setItem('qa_records', JSON.stringify(updatedRecords));
     
     // 更新统计信息
-    updateStatistics(newRecord);
+    await updateStatistics(newRecord);
 
     // 自动将错误的题目添加到错题本数据库
     if (record.questions && Array.isArray(record.questions) && record.results && record.results.questionResults) {
@@ -418,24 +418,49 @@ export const getMistakes = (userId) => {
 };
 
 /**
- * 获取用户的学习统计数据
+ * 获取用户统计数据
  * @param {string} userId - 用户ID
- * @returns {Object} 统计数据
+ * @returns {Promise<Object>} 统计数据
  */
-export const getUserStatistics = (userId) => {
+export const getUserStatistics = async (userId) => {
   try {
     if (!userId) return null;
     
+    // 首先尝试从后端API获取最新的学习进度数据
+    let progressData = null;
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        const response = await fetch(`${apiBaseUrl}/api/stats/student-dashboard`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success) {
+            progressData = result.stats;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('从API获取学习进度失败:', error);
+      // 失败时继续使用本地数据
+    }
+    
     // 尝试从localStorage获取统计信息
     const statsString = localStorage.getItem(`qa_stats_${userId}`);
+    let stats = null;
+    
     if (statsString) {
-      return JSON.parse(statsString);
+      stats = JSON.parse(statsString);
     }
     
     // 如果没有统计信息，则计算
     const records = getExerciseRecords(userId);
-    if (!records.length) {
-      return {
+    if (!stats) {
+      stats = {
         userId,
         totalExercises: 0,
         totalQuestions: 0,
@@ -449,8 +474,18 @@ export const getUserStatistics = (userId) => {
       };
     }
     
-    // 计算初始统计数据
-    const stats = calculateStatistics(records, userId);
+    // 如果有本地记录，计算本地统计数据
+    if (records.length > 0) {
+      // 计算初始统计数据
+      stats = calculateStatistics(records, userId);
+    }
+    
+    // 如果从API获取了数据，则更新整体学习进度
+    if (progressData) {
+      stats.progressPercentage = progressData.progressPercentage;
+      stats.upcomingExamCount = progressData.upcomingExamCount;
+      stats.mistakeCount = progressData.mistakeCount;
+    }
     
     // 保存统计数据
     localStorage.setItem(`qa_stats_${userId}`, JSON.stringify(stats));
@@ -594,12 +629,12 @@ const calculateStatistics = (records, userId) => {
  * 更新用户统计信息
  * @param {Object} newRecord - 新的练习记录
  */
-const updateStatistics = (newRecord) => {
+const updateStatistics = async (newRecord) => {
   if (!newRecord.userId) return;
   
   try {
     const userId = newRecord.userId;
-    const stats = getUserStatistics(userId);
+    const stats = await getUserStatistics(userId);
     
     if (!stats) return;
     
@@ -665,13 +700,13 @@ const updateStatistics = (newRecord) => {
 /**
  * 导出用户的学习数据
  * @param {string} userId - 用户ID
- * @returns {Object} 包含所有学习数据的对象
+ * @returns {Promise<Object>} 包含所有学习数据的对象
  */
-export const exportUserData = (userId) => {
+export const exportUserData = async (userId) => {
   if (!userId) return null;
   
   try {
-    const stats = getUserStatistics(userId);
+    const stats = await getUserStatistics(userId);
     const records = getExerciseRecords(userId);
     const mistakes = getMistakes(userId);
     
@@ -691,9 +726,9 @@ export const exportUserData = (userId) => {
 /**
  * 导入用户的学习数据
  * @param {Object} data - 导入的数据
- * @returns {boolean} 是否成功导入
+ * @returns {Promise<boolean>} 是否成功导入
  */
-export const importUserData = (data) => {
+export const importUserData = async (data) => {
   if (!data || !data.userId) return false;
   
   try {

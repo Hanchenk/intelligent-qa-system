@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useSelector } from 'react-redux';
 import { use } from 'react';
 import AuthGuard from '../../../../../components/AuthGuard';
-import MarkdownPreview from '@/app/components/MarkdownPreview';
-import OptionMarkdownPreview from '@/app/components/OptionMarkdownPreview';
-import { saveExerciseRecord } from '@/app/services/recordService';
+import { MarkdownPreview, OptionMarkdownPreview } from '@/app/components/markdown/MarkdownPreview';
+import { saveExerciseRecord, createRecord } from '@/app/services/recordService';
+import { getUserBookmarks, createBookmark, deleteBookmarkByExerciseId } from '@/app/services/bookmarkService';
 
 // Material UI 组件
 import {
@@ -154,47 +154,36 @@ export default function ResultPage({ params }) {
   };
   
   // 检查练习是否已收藏
-  const checkBookmarkStatus = () => {
+  const checkBookmarkStatus = async () => {
     try {
       if (!user || !user.id) return;
       
-      // 从localStorage获取收藏列表
-      const bookmarksStr = localStorage.getItem(`qa_bookmarks_${user.id}`);
-      if (!bookmarksStr) return;
-      
-      const bookmarks = JSON.parse(bookmarksStr);
-      setBookmarked(bookmarks.some(item => item.exerciseId === exerciseId));
+      // 从API获取收藏列表
+      const bookmarksData = await getUserBookmarks();
+      setBookmarked(bookmarksData.some(item => item.exerciseId === exerciseId));
     } catch (error) {
       console.error('检查收藏状态失败:', error);
     }
   };
   
   // 切换收藏状态
-  const toggleBookmark = () => {
+  const toggleBookmark = async () => {
     try {
       if (!user || !user.id || !results) return;
       
-      // 从localStorage获取收藏列表
-      const bookmarksStr = localStorage.getItem(`qa_bookmarks_${user.id}`);
-      let bookmarks = bookmarksStr ? JSON.parse(bookmarksStr) : [];
-      
       if (bookmarked) {
         // 取消收藏
-        bookmarks = bookmarks.filter(item => item.exerciseId !== exerciseId);
+        await deleteBookmarkByExerciseId(exerciseId);
         setBookmarked(false);
       } else {
         // 添加收藏
-        bookmarks.push({
+        await createBookmark({
           exerciseId,
           exerciseTitle: results.exerciseTitle,
-          timestamp: new Date().toISOString(),
           tags: results.tags || ['练习']
         });
         setBookmarked(true);
       }
-      
-      // 保存更新后的收藏列表
-      localStorage.setItem(`qa_bookmarks_${user.id}`, JSON.stringify(bookmarks));
     } catch (error) {
       console.error('更新收藏状态失败:', error);
       alert('更新收藏状态失败，请稍后再试');

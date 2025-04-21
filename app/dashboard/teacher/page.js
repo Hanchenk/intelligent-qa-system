@@ -36,7 +36,7 @@ export default function TeacherDashboard() {
       setError(null);
       
       try {
-        const response = await axios.get(`${API_URL}/api/stats/dashboard`, {
+        const response = await axios.get(`${API_URL}/stats/dashboard`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         

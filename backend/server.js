@@ -28,6 +28,7 @@ app.use('/api/llm', require('./routes/llm'));
 app.use('/api/tags', require('./routes/tags'));
 app.use('/api/stats', require('./routes/stats'));
 app.use('/api/mistakes', require('./routes/mistakes'));
+app.use('/api/bookmarks', require('./routes/bookmarks'));
 
 // 基础路由
 app.get('/', (req, res) => {

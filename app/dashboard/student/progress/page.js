@@ -6,6 +6,7 @@ import { useSelector } from 'react-redux';
 import Link from 'next/link';
 import AuthGuard from '../../../components/AuthGuard';
 import { getUserStatistics } from '@/app/services/recordService';
+import { getUserBookmarks } from '@/app/services/bookmarkService';
 import { useTheme } from '@mui/material/styles';
 
 // Material UI 组件
@@ -173,7 +174,9 @@ export default function StudentProgressPage() {
     setStatsLoading(true);
     
     try {
-      // 获取用户统计信息
+      // 获取用户统计信息（包括后端计算的整体学习进度）
+      // getUserStatistics函数已更新为异步并从后端API获取最新的学习进度数据
+      // progressPercentage 是基于用户在系统题库中已回答的题目数量计算的
       const stats = await getUserStatistics(user.id);
       
       // 分析标签掌握情况
@@ -252,15 +255,16 @@ export default function StudentProgressPage() {
   };
   
   // 加载用户收藏
-  const loadUserBookmarks = () => {
+  const loadUserBookmarks = async () => {
     try {
-      const bookmarksStr = localStorage.getItem(`qa_bookmarks_${user.id}`);
-      if (bookmarksStr) {
-        const parsedBookmarks = JSON.parse(bookmarksStr);
-        setBookmarks(parsedBookmarks);
-      }
+      if (!user) return;
+      
+      const bookmarksData = await getUserBookmarks();
+      setBookmarks(bookmarksData);
     } catch (error) {
       console.error('加载用户收藏失败:', error);
+      // 即使加载失败也不影响页面渲染，设置为空数组
+      setBookmarks([]);
     }
   };
   
@@ -326,7 +330,7 @@ export default function StudentProgressPage() {
                     }}
                   />
                   <Typography variant="body2" color="textSecondary">
-                    {tag.percentage}%
+                    {tag.percentage.toFixed(1)}%
                   </Typography>
                 </Box>
                 <Typography variant="body2" color="textSecondary">
@@ -365,7 +369,7 @@ export default function StudentProgressPage() {
                         </ListItemIcon>
                         <ListItemText 
                           primary={topic.tag} 
-                          secondary={`${topic.percentage}% 正确率 (${topic.correct}/${topic.total})`} 
+                          secondary={`${topic.percentage.toFixed(1)}% 正确率 (${topic.correct}/${topic.total})`} 
                         />
                       </ListItem>
                     ))}
@@ -396,7 +400,7 @@ export default function StudentProgressPage() {
                         </ListItemIcon>
                         <ListItemText 
                           primary={topic.tag} 
-                          secondary={`${topic.percentage}% 正确率 (${topic.correct}/${topic.total})`} 
+                          secondary={`${topic.percentage.toFixed(1)}% 正确率 (${topic.correct}/${topic.total})`} 
                         />
                       </ListItem>
                     ))}
@@ -474,7 +478,7 @@ export default function StudentProgressPage() {
                   <ListItem>
                     <ListItemText 
                       primary="正确率" 
-                      secondary={`${userStats.totalQuestions ? Math.round((userStats.correctQuestions / userStats.totalQuestions) * 100) : 0}%`} 
+                      secondary={`${userStats.totalQuestions ? (userStats.correctQuestions / userStats.totalQuestions * 100).toFixed(1) : '0.0'}%`} 
                     />
                   </ListItem>
                 </List>
@@ -564,7 +568,7 @@ export default function StudentProgressPage() {
                           <Box display="flex" justifyContent="space-between" mb={0.5}>
                             <Typography variant="body2">{topic.tag}</Typography>
                             <Typography variant="body2" color="success.main">
-                              {Math.round(topic.percentage)}%
+                              {topic.percentage.toFixed(1)}%
                             </Typography>
                           </Box>
                           <LinearProgress 
@@ -593,7 +597,7 @@ export default function StudentProgressPage() {
                           <Box display="flex" justifyContent="space-between" mb={0.5}>
                             <Typography variant="body2">{topic.tag}</Typography>
                             <Typography variant="body2" color="error.main">
-                              {Math.round(topic.percentage)}%
+                              {topic.percentage.toFixed(1)}%
                             </Typography>
                           </Box>
                           <LinearProgress 
@@ -656,7 +660,7 @@ export default function StudentProgressPage() {
                           <TableCell>{category}</TableCell>
                           <TableCell align="center">{data.count}</TableCell>
                           <TableCell align="center">
-                            {Math.round(data.averageScore)}%
+                            {data.averageScore.toFixed(1)}%
                           </TableCell>
                           <TableCell align="right">
                             <Box display="flex" alignItems="center" justifyContent="flex-end">
@@ -786,7 +790,7 @@ export default function StudentProgressPage() {
                       ? theme.palette.warning.main 
                       : theme.palette.error.main 
                 }}>
-                  {userStats?.averageScore || 0}%
+                  {userStats?.averageScore ? userStats.averageScore.toFixed(1) : '0.0'}%
                 </Typography>
                 <Typography variant="body2" color="textSecondary">
                   平均得分率
@@ -804,6 +808,33 @@ export default function StudentProgressPage() {
               </Box>
             </Grid>
           </Grid>
+
+          {/* 显示整体学习进度百分比 */}
+          {userStats?.progressPercentage !== undefined && (
+            <Box sx={{ mt: 3 }}>
+              <Typography variant="body1" sx={{ mb: 1, display: 'flex', justifyContent: 'space-between' }}>
+                <span>整体学习进度</span>
+                <span>{userStats.progressPercentage.toFixed(1)}%</span>
+              </Typography>
+              <LinearProgress 
+                variant="determinate" 
+                value={userStats.progressPercentage} 
+                sx={{ 
+                  height: 10, 
+                  borderRadius: 5,
+                  '& .MuiLinearProgress-bar': {
+                    backgroundColor: 
+                      userStats.progressPercentage >= 80 ? theme.palette.success.main : 
+                      userStats.progressPercentage >= 60 ? theme.palette.warning.main : 
+                      theme.palette.error.main
+                  }
+                }} 
+              />
+              <Typography variant="caption" color="textSecondary" sx={{ mt: 0.5, display: 'block' }}>
+                基于系统题库中已回答题目数量计算
+              </Typography>
+            </Box>
+          )}
         </CardContent>
       </Card>
       

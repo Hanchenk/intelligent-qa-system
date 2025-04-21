@@ -107,7 +107,7 @@ export default function ExercisePage({ params }) {
         
         // 获取题目详情
         const questionPromises = exerciseData.questionIds.map(questionId => 
-          axios.get(`${API_URL}/api/questions/${questionId}`, {
+          axios.get(`${API_URL}/questions/${questionId}`, {
             headers: { Authorization: `Bearer ${token}` }
           })
         );

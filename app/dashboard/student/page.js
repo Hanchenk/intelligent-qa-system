@@ -35,7 +35,7 @@ export default function StudentDashboard() {
       setError(null);
       
       try {
-        const response = await axios.get(`${API_URL}/api/stats/student-dashboard`, {
+        const response = await axios.get(`${API_URL}/stats/student-dashboard`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         
