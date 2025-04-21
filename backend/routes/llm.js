@@ -296,4 +296,101 @@ ${historyText}
   }
 });
 
+// @route   POST /api/llm/generate-questions-custom
+// @desc    根据自定义参数生成题目
+// @access  Private/Teacher
+router.post('/generate-questions-custom', protect, authorize('teacher'), async (req, res) => {
+  try {
+    const { topic, difficulty, type, includeExplanation, jsonSample, count = 5 } = req.body;
+
+    if (!topic || !type) {
+      return res.status(400).json({
+        success: false,
+        message: '请提供题目主题和类型'
+      });
+    }
+
+    // 解析JSON样例作为模板
+    let sampleJson;
+    try {
+      sampleJson = JSON.parse(jsonSample);
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'JSON样例格式错误'
+      });
+    }
+
+    // 限制生成数量在1-10之间
+    const questionCount = Math.min(Math.max(1, count), 10);
+
+    const prompt = `请根据以下要求，为计算机专业学生生成${questionCount}道高质量的${type}题目:
+
+主题: ${topic}
+难度: ${difficulty}
+题目类型: ${type}
+${includeExplanation ? '请包含详细解析' : '不需要包含解析'}
+
+请严格按照以下JSON格式返回结果:
+${jsonSample}
+
+注意事项:
+1. 生成内容必须严格遵循提供的JSON格式
+2. 题目内容必须准确、专业，难度符合要求
+3. 选择题的选项必须清晰、有区分度
+4. ${includeExplanation ? '解析应详细说明正确答案的原因' : '不需要包含解析字段'}
+5. 所有生成的内容必须与主题"${topic}"密切相关
+6. 请确保生成 ${questionCount} 道题目
+
+请确保生成的JSON能够被直接解析，不要添加任何额外的说明文字。`;
+
+    const messages = [
+      {
+        role: 'user',
+        content: prompt
+      }
+    ];
+
+    const result = await callDeepseek(messages);
+
+    if (result.error) {
+      return res.status(500).json({
+        success: false,
+        message: result.error
+      });
+    }
+
+    let questions;
+    try {
+      // 尝试从返回的内容中提取JSON
+      const contentText = result.choices[0].message.content;
+      const jsonMatch = contentText.match(/\[[\s\S]*\]/);
+      
+      if (jsonMatch) {
+        questions = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('无法解析返回的JSON');
+      }
+    } catch (error) {
+      console.error('解析生成的题目失败:', error);
+      return res.status(500).json({
+        success: false,
+        message: '解析生成的题目失败',
+        rawResponse: result.choices[0].message.content
+      });
+    }
+
+    res.json({
+      success: true,
+      questions
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: '服务器错误'
+    });
+  }
+});
+
 module.exports = router; 

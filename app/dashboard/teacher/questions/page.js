@@ -41,6 +41,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import SearchIcon from '@mui/icons-material/Search';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -359,6 +360,14 @@ export default function TeacherQuestionsPage() {
                     onClick={() => router.push('/dashboard/teacher/questions/import')}
                   >
                     批量导入
+                  </Button>
+                  <Button 
+                    variant="outlined" 
+                    color="secondary" 
+                    startIcon={<SmartToyIcon />}
+                    onClick={() => router.push('/dashboard/teacher/questions/ai-generate')}
+                  >
+                    AI生成
                   </Button>
                   <Button 
                     variant="contained" 
