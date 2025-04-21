@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSelector } from 'react-redux';
+import { use } from 'react';
 import Link from 'next/link';
 import axios from 'axios';
 import { 
@@ -26,29 +27,24 @@ import StudentNavBar from '../../components/StudentNavBar';
 // 调整API路径格式
 const ensureCorrectApiUrl = (url) => {
   // 检查API URL是否正确包含/api前缀
-  // 某些后端接口可能需要/api前缀，这里进行兼容处理
-  if (!url) return 'http://localhost:3001';
+  if (!url) return 'http://localhost:3001/api';
   
   console.log('检查API URL:', url);
   
-  // 如果URL已经包含/api，保持不变
-  if (url.endsWith('/api')) {
-    return url;
-  }
-  
-  // 否则用标准格式
+  // 返回原始URL，假设它已经正确配置
   return url;
 };
 
 // 定义API路径常量
-const API_URL = ensureCorrectApiUrl(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001');
+const API_URL = ensureCorrectApiUrl(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api');
 console.log('使用API URL:', API_URL);
 
 export default function DiscussionDetailPage({ params }) {
   const router = useRouter();
   
-  // 正确地使用React.use()解包params对象
-  const discussionId = use(Promise.resolve(params)).id;
+  // 使用React.use()解包params对象
+  const unwrappedParams = use(params);
+  const discussionId = unwrappedParams.id;
   
   const { user } = useSelector((state) => state.auth);
   const [discussion, setDiscussion] = useState(null);
@@ -67,24 +63,6 @@ export default function DiscussionDetailPage({ params }) {
       setLoading(false);
     }
   }, [discussionId]);
-  
-  // 进行API路径测试
-  useEffect(() => {
-    // 测试API连接
-    const testApiConnection = async () => {
-      try {
-        console.log('测试API连接:', `${API_URL}/ping`);
-        const response = await fetch(`${API_URL}/ping`);
-        console.log('API连接测试状态:', response.status);
-        const data = await response.text();
-        console.log('API连接测试结果:', data);
-      } catch (err) {
-        console.error('API连接测试失败:', err);
-      }
-    };
-    
-    testApiConnection();
-  }, []);
   
   const fetchDiscussionDetail = async (id) => {
     setLoading(true);
@@ -114,8 +92,10 @@ export default function DiscussionDetailPage({ params }) {
         console.log('API Response:', response.data);
         
         if (response.data && response.data.success) {
-          setDiscussion(response.data.discussion);
-          setReplies(response.data.replies || []);
+          const discussionData = response.data.discussion;
+          setDiscussion(discussionData);
+          // 从discussion对象中提取replies数组，如果存在的话
+          setReplies(discussionData.replies || []);
         } else {
           throw new Error(response.data?.message || '获取讨论详情失败');
         }
@@ -141,13 +121,16 @@ export default function DiscussionDetailPage({ params }) {
       
       // 设置测试数据以便用户仍然能看到页面
       setDiscussion({
-        id: id || '1',
+        _id: id,
+        id: id,
         title: '示例讨论主题',
         content: '这是一个示例讨论内容，用于在无法从服务器获取数据时显示。',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         author: {
-          id: user?.id || 101,
+          _id: user?.id || '101',
+          id: user?.id || '101',
+          username: user?.name || '示例用户',
           name: user?.name || '示例用户',
           role: user?.role || 'student',
           avatar: null
@@ -159,11 +142,14 @@ export default function DiscussionDetailPage({ params }) {
       
       setReplies([
         {
-          id: 1,
+          _id: '1',
+          id: '1',
           content: '这是一个示例回复。当前无法从服务器获取实际数据，这些是临时显示的内容。',
           createdAt: new Date().toISOString(),
           author: {
-            id: 201,
+            _id: '201',
+            id: '201',
+            username: '系统',
             name: '系统',
             role: 'teacher',
             avatar: null
@@ -194,9 +180,11 @@ export default function DiscussionDetailPage({ params }) {
       console.log('Reply submission response:', response.data);
       
       if (response.data && response.data.success) {
-        // 添加新回复到列表
-        const newReply = response.data.reply;
-        setReplies([...replies, newReply]);
+        // 讨论对象中已包含更新后的回复
+        const updatedDiscussion = response.data.discussion;
+        if (updatedDiscussion && updatedDiscussion.replies) {
+          setReplies(updatedDiscussion.replies);
+        }
         setReplyContent(''); // 清空输入框
       } else {
         throw new Error(response.data?.message || '发表回复失败');
@@ -217,11 +205,14 @@ export default function DiscussionDetailPage({ params }) {
       // 测试用：模拟添加回复
       if (user) {
         const mockNewReply = {
-          id: Date.now(),
+          _id: Date.now().toString(),
+          id: Date.now().toString(),
           content: replyContent,
           createdAt: new Date().toISOString(),
           author: {
+            _id: user.id || 'temp-id',
             id: user.id || 'temp-id',
+            username: user.name || '当前用户',
             name: user.name || '当前用户',
             role: user.role || 'student',
             avatar: user.avatar
@@ -315,11 +306,11 @@ export default function DiscussionDetailPage({ params }) {
                         src={discussion.author?.avatar} 
                         className="mr-2"
                       >
-                        {discussion.author?.name?.charAt(0) || '?'}
+                        {discussion.author?.username?.charAt(0) || discussion.author?.name?.charAt(0) || '?'}
                       </Avatar>
                       <div>
                         <Typography variant="subtitle1">
-                          {discussion.author?.name || '未知用户'}
+                          {discussion.author?.username || discussion.author?.name || '未知用户'}
                           <Chip 
                             label={discussion.author?.role === 'teacher' ? '教师' : '学生'} 
                             size="small" 
@@ -368,17 +359,17 @@ export default function DiscussionDetailPage({ params }) {
                     </Paper>
                   ) : (
                     replies.map((reply) => (
-                      <Paper key={reply.id} className="p-4 mb-4" variant="outlined">
+                      <Paper key={reply._id || reply.id} className="p-4 mb-4" variant="outlined">
                         <div className="flex items-center mb-3">
                           <Avatar 
                             src={reply.author?.avatar} 
                             className="mr-2"
                           >
-                            {reply.author?.name?.charAt(0) || '?'}
+                            {reply.author?.username?.charAt(0) || reply.author?.name?.charAt(0) || '?'}
                           </Avatar>
                           <div>
                             <Typography variant="subtitle2">
-                              {reply.author?.name || '未知用户'}
+                              {reply.author?.username || reply.author?.name || '未知用户'}
                               <Chip 
                                 label={reply.author?.role === 'teacher' ? '教师' : '学生'} 
                                 size="small" 
