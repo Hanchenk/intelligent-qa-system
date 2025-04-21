@@ -75,7 +75,7 @@ export default function AIGenerateQuestionsPage() {
       if (!token) return;
       
       try {
-        const response = await axios.get(`${API_URL}/api/tags`, {
+        const response = await axios.get(`${API_URL}/tags`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         
@@ -179,7 +179,7 @@ export default function AIGenerateQuestionsPage() {
       };
       
       // 调用后端API
-      const response = await axios.post(`${API_URL}/api/llm/generate-questions-custom`, requestData, {
+      const response = await axios.post(`${API_URL}/llm/generate-questions-custom`, requestData, {
         headers: { Authorization: `Bearer ${token}` }
       });
       

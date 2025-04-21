@@ -96,6 +96,9 @@ export default function TeacherQuestionsPage() {
       // 更新状态
       setQuestions(response.data.data || []);
       setTotalPages(response.data.pagination?.totalPages || 1);
+      // 保存总数据量用于显示
+      const totalItems = response.data.pagination?.total || 0;
+      sessionStorage.setItem('totalQuestions', totalItems);
     } catch (err) {
       console.error('获取题目列表失败:', err);
       setError('获取题目列表失败，请重试');
@@ -106,6 +109,8 @@ export default function TeacherQuestionsPage() {
       // 确保演示数据也有正确的分页
       const mockTotalPages = Math.ceil(mockQuestions.length / ITEMS_PER_PAGE);
       setTotalPages(mockTotalPages > 0 ? mockTotalPages : 1);
+      // 保存演示数据总量
+      sessionStorage.setItem('totalQuestions', mockQuestions.length);
     } finally {
       setLoading(false);
     }
@@ -303,14 +308,10 @@ export default function TeacherQuestionsPage() {
     }
   ];
   
-  // 处理分页 - 对演示数据也进行分页处理
+  // 处理分页 - 移除前端分页逻辑，直接使用API返回的当前页数据
   const getPaginatedQuestions = () => {
     if (questions.length === 0) return [];
-    
-    const startIndex = (page - 1) * ITEMS_PER_PAGE;
-    const endIndex = startIndex + ITEMS_PER_PAGE;
-    
-    return questions.slice(startIndex, endIndex);
+    return questions; // 直接返回API已分页的数据
   };
   
   return (
@@ -562,7 +563,7 @@ export default function TeacherQuestionsPage() {
                     />
                   </div>
                   <div className="text-center text-sm text-gray-500 mt-2">
-                    第 {page} 页 / 共 {totalPages} 页 (总计 {questions.length} 个题目)
+                    第 {page} 页 / 共 {totalPages} 页 (总计 {typeof window !== 'undefined' ? sessionStorage.getItem('totalQuestions') || 0 : 0} 个题目)
                   </div>
                 </>
               )}
