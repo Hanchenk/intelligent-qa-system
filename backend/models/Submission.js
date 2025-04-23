@@ -27,9 +27,17 @@ const submissionSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  aiEvaluation: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
+  },
   timeSpent: {
     type: Number,
     default: 0
+  },
+  isAiEvaluated: {
+    type: Boolean,
+    default: false
   },
   submittedAt: {
     type: Date,

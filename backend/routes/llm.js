@@ -43,42 +43,91 @@ router.post('/generate-questions', protect, authorize('teacher'), async (req, re
       });
     }
 
-    const prompt = `请为计算机专业的学生生成${count}道关于"${topic}"的${
-      type === 'objective' ? '客观选择题' : '主观题'
-    }，难度级别为${difficulty || '中等'}。
-    
-    ${type === 'objective' ? '每道题需要包含4个选项。' : '每道题需要有详细的参考答案。'}
-    
-    请以JSON格式返回结果，格式如下：
-    [
-      {
-        "title": "题目标题",
-        "content": "题目内容",
-        "type": "${type}",
-        ${
-          type === 'objective'
-            ? `"options": [
-              {"text": "选项A", "isCorrect": false},
-              {"text": "选项B", "isCorrect": true},
-              {"text": "选项C", "isCorrect": false},
-              {"text": "选项D", "isCorrect": false}
-            ],`
-            : ''
-        }
-        "answer": ${type === 'objective' ? '"正确选项"' : '"参考答案"'},
-        "explanation": "详细解析",
-        "difficulty": ${difficulty || 3},
-        "tags": ["标签1", "标签2"],
-        "category": "${topic}"
-      }
-    ]
+    let promptTemplate;
+    if (type === 'objective') {
+      // 客观题提示模板
+      promptTemplate = `请为计算机专业的学生生成${count}道关于"${topic}"的客观选择题，难度级别为${difficulty || '中等'}。
+      
+每道题需要包含4个选项。
 
-    确保生成的题目内容准确，难度合理，解析详细。`;
+请以JSON格式返回结果，格式如下：
+[
+  {
+    "title": "题目标题",
+    "content": "题目内容",
+    "type": "单选题",
+    "options": [
+      {"text": "选项A", "isCorrect": false},
+      {"text": "选项B", "isCorrect": true},
+      {"text": "选项C", "isCorrect": false},
+      {"text": "选项D", "isCorrect": false}
+    ],
+    "answer": "正确选项",
+    "explanation": "详细解析",
+    "difficulty": "${difficulty || '中等'}",
+    "tags": ["标签1", "标签2"],
+    "category": "${topic}"
+  }
+]`;
+    } else if (type === '简答题') {
+      // 简答题提示模板
+      promptTemplate = `请为计算机专业的学生生成${count}道关于"${topic}"的简答题，难度级别为${difficulty || '中等'}。
+
+每道题需要包含详细的参考答案和评分标准。
+
+请以JSON格式返回结果，格式如下：
+[
+  {
+    "title": "题目内容",
+    "type": "简答题",
+    "correctAnswer": "详细的参考答案",
+    "explanation": "评分标准和解析",
+    "difficulty": "${difficulty || '中等'}",
+    "score": 10,
+    "tags": ["标签1", "标签2"],
+    "category": "${topic}"
+  }
+]`;
+    } else if (type === '编程题') {
+      // 编程题提示模板
+      promptTemplate = `请为计算机专业的学生生成${count}道关于"${topic}"的编程题，难度级别为${difficulty || '中等'}。
+
+每道题需要包含详细的题目描述、输入输出要求、示例测试用例，以及参考代码实现和评分标准。
+
+请以JSON格式返回结果，格式如下：
+[
+  {
+    "title": "题目标题",
+    "content": "详细题目描述，包含问题背景、要求、限制条件等",
+    "inputFormat": "输入格式说明",
+    "outputFormat": "输出格式说明",
+    "examples": [
+      {
+        "input": "示例输入",
+        "output": "示例输出",
+        "explanation": "示例解释"
+      }
+    ],
+    "type": "编程题",
+    "correctAnswer": "参考代码实现",
+    "explanation": "算法思路解析和评分标准",
+    "difficulty": "${difficulty || '中等'}",
+    "score": 20,
+    "tags": ["标签1", "标签2"],
+    "category": "${topic}"
+  }
+]`;
+    } else {
+      // 默认模板
+      promptTemplate = `请为计算机专业的学生生成${count}道关于"${topic}"的${type}，难度级别为${difficulty || '中等'}。
+
+请以JSON格式返回结果，确保生成的题目内容准确，难度合理，解析详细。`;
+    }
 
     const messages = [
       {
         role: 'user',
-        content: prompt
+        content: promptTemplate
       }
     ];
 
@@ -129,7 +178,7 @@ router.post('/generate-questions', protect, authorize('teacher'), async (req, re
 // @access  Private
 router.post('/evaluate-answer', protect, async (req, res) => {
   try {
-    const { questionId, questionContent, standardAnswer, userAnswer } = req.body;
+    const { questionId, questionContent, standardAnswer, userAnswer, questionType = '简答题' } = req.body;
 
     if (!questionContent || !standardAnswer || !userAnswer) {
       return res.status(400).json({
@@ -138,33 +187,86 @@ router.post('/evaluate-answer', protect, async (req, res) => {
       });
     }
 
-    const prompt = `请评估下面学生对主观题的回答，并给出评分（满分100分）和详细的评价意见。
+    console.log(`收到${questionType}评估请求: ${questionId.substring(0, 8)}...`);
 
-    题目内容：
-    ${questionContent}
-    
-    参考答案：
-    ${standardAnswer}
-    
-    学生回答：
-    ${userAnswer}
-    
-    请以JSON格式返回结果，格式如下：
-    {
-      "score": 85,
-      "feedback": "详细的评价意见，包括学生答案的优点和不足"
-    }`;
+    // 根据题目类型调整评估提示
+    let evaluationPrompt;
+    if (questionType === '编程题') {
+      evaluationPrompt = `你是一位经验丰富的编程教师，现在需要你评估学生的编程题解答。请提供详细的评分和解析。
 
+题目内容：
+${questionContent}
+
+参考答案（标准代码实现）：
+${standardAnswer}
+
+学生提交的代码：
+${userAnswer}
+
+请评估以下几个方面并给出相应分数（总分100分）：
+1. 代码正确性（40分）：代码是否能正确实现题目要求的功能，是否有逻辑错误
+2. 代码效率（20分）：时间复杂度和空间复杂度是否合理，算法选择是否恰当
+3. 代码风格（20分）：命名规范、缩进、注释是否清晰易读
+4. 错误处理（10分）：是否考虑了边界条件和异常情况
+5. 创新性（10分）：有无独特的解题思路或优化
+
+请以JSON格式返回评估结果，格式示例：
+{
+  "score": 85,
+  "feedback": "总体评价，概述代码的优缺点",
+  "strengthPoints": ["优点1", "优点2", ...],
+  "weaknessPoints": ["缺点1", "缺点2", ...],
+  "codeAnalysis": "代码逻辑分析，说明代码如何工作",
+  "improvementSuggestions": "改进建议，如何优化代码",
+  "correctSolution": "如果学生的解答有明显错误，提供修正后的代码片段或思路"
+}
+
+请确保返回JSON对象包含以上所有字段，评分要客观公正，解析要详细具体。`;
+    } else {
+      // 简答题默认评估提示
+      evaluationPrompt = `你是一位专业的计算机科学教师，现在需要你评估学生对简答题的解答。请提供详细的评分和解析。
+
+题目内容：
+${questionContent}
+
+参考答案：
+${standardAnswer}
+
+学生回答：
+${userAnswer}
+
+请评估以下几个方面并给出相应分数（总分100分）：
+1. 内容完整性（40分）：是否涵盖了参考答案中的关键概念和要点
+2. 概念准确性（30分）：对概念的理解和表述是否准确无误
+3. 逻辑清晰度（20分）：论述是否条理分明，前后连贯
+4. 表达能力（10分）：语言是否简洁清晰，专业术语使用是否恰当
+
+请以JSON格式返回评估结果，格式示例：
+{
+  "score": 85,
+  "feedback": "总体评价，概述回答的优缺点",
+  "keyPointsCovered": ["已覆盖的要点1", "已覆盖的要点2", ...],
+  "missingPoints": ["遗漏的要点1", "遗漏的要点2", ...],
+  "misconceptions": ["错误概念1", "错误概念2", ...],
+  "improvementSuggestions": "改进建议，如何完善答案",
+  "modelAnswer": "如果学生答案存在明显不足，提供一个简洁的修正版答案"
+}
+
+请确保返回JSON对象包含以上所有字段，评分要客观公正，解析要详细具体。`;
+    }
+
+    console.log('发送评估请求到大语言模型...');
     const messages = [
       {
         role: 'user',
-        content: prompt
+        content: evaluationPrompt
       }
     ];
 
     const result = await callDeepseek(messages);
 
     if (result.error) {
+      console.error('大语言模型API调用失败:', result.error);
       return res.status(500).json({
         success: false,
         message: result.error
@@ -179,6 +281,7 @@ router.post('/evaluate-answer', protect, async (req, res) => {
       
       if (jsonMatch) {
         evaluation = JSON.parse(jsonMatch[0]);
+        console.log(`评估成功，分数: ${evaluation.score}`);
       } else {
         throw new Error('无法解析返回的JSON');
       }
@@ -196,7 +299,7 @@ router.post('/evaluate-answer', protect, async (req, res) => {
       evaluation
     });
   } catch (error) {
-    console.error(error);
+    console.error('评估主观题发生错误:', error);
     res.status(500).json({
       success: false,
       message: '服务器错误'

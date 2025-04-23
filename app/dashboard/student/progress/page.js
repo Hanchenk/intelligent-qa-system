@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation';
 import { useSelector } from 'react-redux';
 import Link from 'next/link';
 import AuthGuard from '../../../components/AuthGuard';
-import { getUserStatistics } from '@/app/services/recordService';
+import { getUserStatistics, getExerciseRecords } from '@/app/services/recordService';
 import { getUserBookmarks } from '@/app/services/bookmarkService';
 import { useTheme } from '@mui/material/styles';
+import dynamic from 'next/dynamic';
+import axios from 'axios';
 
 // Material UI 组件
 import {
@@ -34,8 +36,13 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Tooltip,
+  Tooltip as MuiTooltip,
   Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  CardActions,
 } from '@mui/material';
 
 // Material Icons
@@ -56,6 +63,33 @@ import ErrorIcon from '@mui/icons-material/Error';
 import EqualizerIcon from '@mui/icons-material/Equalizer';
 import { EmojiEvents, CheckCircle, WarningAmber, ErrorOutline } from '@mui/icons-material';
 import HistoryIcon from '@mui/icons-material/History';
+import FitnessCenterIcon from '@mui/icons-material/FitnessCenter';
+
+// 动态导入 recharts 组件，并禁用 SSR
+const LineChart = dynamic(() => import('recharts').then(mod => mod.LineChart), { ssr: false });
+const Line = dynamic(() => import('recharts').then(mod => mod.Line), { ssr: false });
+const XAxis = dynamic(() => import('recharts').then(mod => mod.XAxis), { ssr: false });
+const YAxis = dynamic(() => import('recharts').then(mod => mod.YAxis), { ssr: false });
+const CartesianGrid = dynamic(() => import('recharts').then(mod => mod.CartesianGrid), { ssr: false });
+const Tooltip = dynamic(() => import('recharts').then(mod => mod.Tooltip), { ssr: false });
+const Legend = dynamic(() => import('recharts').then(mod => mod.Legend), { ssr: false });
+const ResponsiveContainer = dynamic(() => import('recharts').then(mod => mod.ResponsiveContainer), { ssr: false });
+// BarChart 和 Bar 如果也使用，同样需要动态导入
+const BarChart = dynamic(() => import('recharts').then(mod => mod.BarChart), { ssr: false });
+const Bar = dynamic(() => import('recharts').then(mod => mod.Bar), { ssr: false });
+
+// 确保 API URL 定义正确
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const ensureCorrectApiUrl = (url, endpoint) => {
+  let baseUrl = url.replace(/\/+$/, '');
+  if (baseUrl.endsWith('/api') && !endpoint.startsWith('/api')) {
+    return `${baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+  }
+  if (!baseUrl.endsWith('/api') && !endpoint.startsWith('/api')) {
+    return `${baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+  }
+  return `${baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+};
 
 export default function StudentProgressPage() {
   const router = useRouter();
@@ -68,6 +102,19 @@ export default function StudentProgressPage() {
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState(null);
   const [userStats, setUserStats] = useState(null);
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+
+  // --- 新增状态 ---
+  const [reportLoading, setReportLoading] = useState(false);
+  const [learningReport, setLearningReport] = useState('');
+  const [reportError, setReportError] = useState(null);
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+
+  const [recommendationsLoading, setRecommendationsLoading] = useState(false);
+  const [recommendedQuestions, setRecommendedQuestions] = useState([]);
+  const [recommendationsError, setRecommendationsError] = useState(null);
+
+  const [recentRecords, setRecentRecords] = useState([]); // 用于图表
 
   useEffect(() => {
     if (user && user.id) {
@@ -246,6 +293,16 @@ export default function StudentProgressPage() {
         strongTopics,
         weakTopics
       });
+
+      // 获取最近练习记录用于图表
+      const records = getExerciseRecords(user.id);
+      setRecentRecords(records.slice(0, 10).reverse()); // 取最近10条并反转，使图表从左到右为时间顺序
+      
+      // 获取统计后触发推荐
+      if (stats) {
+        fetchRecommendations(stats);
+      }
+
     } catch (error) {
       console.error('加载统计信息失败:', error);
       setStatsError(error.message || '加载统计信息失败');
@@ -525,9 +582,9 @@ export default function StudentProgressPage() {
                                   {score.score}%
                                 </Typography>
                                 {index === 0 && (
-                                  <Tooltip title="最新">
+                                  <MuiTooltip title="最新">
                                     <StarIcon fontSize="small" color="primary" className="ml-1" />
-                                  </Tooltip>
+                                  </MuiTooltip>
                                 )}
                               </Box>
                             </TableCell>
@@ -544,6 +601,27 @@ export default function StudentProgressPage() {
                 )}
               </CardContent>
             </Card>
+          </Grid>
+          
+          {/* 近期练习分数趋势 */}
+          <Grid item xs={12} md={8}>
+            <Typography variant="h6" gutterBottom>近期练习分数趋势</Typography>
+            {recentRecords.length > 0 ? (
+              <Box sx={{ width: '100%', height: 300 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={formatChartData(recentRecords)} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis domain={[0, 100]} />
+                    <Tooltip formatter={(value) => `${value}%`} />
+                    <Legend />
+                    <Line type="monotone" dataKey="score" stroke="#8884d8" activeDot={{ r: 8 }} name="得分率" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </Box>
+            ) : (
+              <Typography color="text.secondary">暂无足够练习记录生成趋势图。</Typography>
+            )}
           </Grid>
           
           {/* 知识点掌握情况 */}
@@ -830,9 +908,17 @@ export default function StudentProgressPage() {
                   }
                 }} 
               />
-              <Typography variant="caption" color="textSecondary" sx={{ mt: 0.5, display: 'block' }}>
-                基于系统题库中已回答题目数量计算
-              </Typography>
+              {/* <Typography variant="caption" color="textSecondary" sx={{ mt: 0.5, display: 'block' }}>
+                已回答不重复题目：{userStats.uniqueAnswered || 0} / {userStats.totalQuestions || 0}
+              </Typography> */}
+              {/* <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
+                注：重复回答同一题目在整体学习进度中只计算一次
+              </Typography> */}
+              {userStats.totalAnswered > 0 && (
+                <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
+                  答题总次数：{userStats.totalAnswered}（包含重复作答）
+                </Typography>
+              )}
             </Box>
           )}
         </CardContent>
@@ -862,9 +948,9 @@ export default function StudentProgressPage() {
                   {userStats.records.slice(0, 5).map((record) => (
                     <TableRow key={record.id}>
                       <TableCell>
-                        <Tooltip title={record.tags.join(', ')} arrow>
+                        <MuiTooltip title={record.tags.join(', ')} arrow>
                           <span>{record.exerciseTitle}</span>
-                        </Tooltip>
+                        </MuiTooltip>
                       </TableCell>
                       <TableCell align="center">{formatDate(record.date)}</TableCell>
                       <TableCell align="center">
@@ -903,6 +989,77 @@ export default function StudentProgressPage() {
     </>
   );
   
+  // --- 学习报告 --- 
+  const handleGenerateReport = async () => {
+    if (!stats) {
+      setReportError('请先等待统计数据加载完成');
+      return;
+    }
+    setReportLoading(true);
+    setReportError(null);
+    setLearningReport('');
+    try {
+      const apiEndpoint = ensureCorrectApiUrl(API_URL, '/llm/generate-learning-report');
+      console.log("调用学习报告API:", apiEndpoint);
+
+      const response = await axios.post(
+        apiEndpoint,
+        { stats: stats }, 
+        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+      );
+      if (response.data.success) {
+        setLearningReport(response.data.report);
+        setIsReportDialogOpen(true);
+      } else {
+        setReportError(response.data.message || '生成报告失败');
+      }
+    } catch (error) {
+      console.error("生成报告API调用失败:", error);
+      setReportError(`生成报告出错: ${error.response?.data?.message || error.message}`);
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  // --- 个性化推荐 ---
+  const fetchRecommendations = async (currentStats) => { // 接收 stats 作为参数
+    if (!currentStats || !currentStats.weakTopics || currentStats.weakTopics.length === 0) {
+       console.log("没有发现明确的弱项，跳过推荐请求");
+       setRecommendedQuestions([]);
+       return;
+    }
+    setRecommendationsLoading(true);
+    setRecommendationsError(null);
+    try {
+      const apiEndpoint = ensureCorrectApiUrl(API_URL, '/llm/recommend-questions');
+      console.log("调用题目推荐API:", apiEndpoint);
+
+      const response = await axios.post(
+        apiEndpoint,
+        { weakTopics: currentStats.weakTopics }, 
+        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+      );
+      if (response.data.success) {
+        setRecommendedQuestions(response.data.questions || []);
+      } else {
+        setRecommendationsError(response.data.message || '获取推荐失败');
+      }
+    } catch (error) {
+      console.error("获取推荐API调用失败:", error);
+      setRecommendationsError(`获取推荐题目出错: ${error.response?.data?.message || error.message}`);
+    } finally {
+      setRecommendationsLoading(false);
+    }
+  };
+
+  // 格式化图表数据
+  const formatChartData = (records) => {
+    return records.map((record, index) => ({
+      name: `练习 ${index + 1}`,
+      score: record.results?.percentage || record.score?.percentage || 0, // 尝试兼容不同记录结构
+    }));
+  };
+
   return (
     <AuthGuard allowedRoles={['student']}>
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -1004,6 +1161,22 @@ export default function StudentProgressPage() {
             </div>
           </div>
         </main>
+
+        {/* 学习报告弹窗 */}    
+        <Dialog open={isReportDialogOpen} onClose={() => setIsReportDialogOpen(false)} maxWidth="md" fullWidth>
+          <DialogTitle>学习报告</DialogTitle>
+          <DialogContent dividers>
+            {learningReport ? (
+              <Typography style={{ whiteSpace: 'pre-wrap' }}>{learningReport}</Typography>
+            ) : (
+              <Typography color="textSecondary">报告内容为空。</Typography>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setIsReportDialogOpen(false)}>关闭</Button>
+          </DialogActions>
+        </Dialog>
+
       </div>
     </AuthGuard>
   );

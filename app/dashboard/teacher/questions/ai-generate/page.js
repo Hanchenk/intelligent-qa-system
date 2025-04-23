@@ -101,7 +101,7 @@ export default function AIGenerateQuestionsPage() {
   const difficultyLevels = ['简单', '中等', '困难'];
   
   // 题目类型选项
-  const questionTypes = ['单选题', '多选题', '判断题'];
+  const questionTypes = ['单选题', '多选题', '判断题', '简答题', '编程题'];
   
   // JSON样例
   const getJsonSample = () => {
@@ -148,6 +148,30 @@ export default function AIGenerateQuestionsPage() {
           "score": 5,
           "correctAnswer": true,
           "explanation": includeExplanation ? "题目解析" : "",
+          "tags": selectedTags.map(tag => tag.name || tag)
+        }
+      ];
+    } else if (questionType === '简答题') {
+      return [
+        {
+          "title": "题目",
+          "type": "简答题",
+          "difficulty": difficulty,
+          "score": 10,
+          "correctAnswer": "参考答案内容",
+          "explanation": includeExplanation ? "评分标准和解析" : "",
+          "tags": selectedTags.map(tag => tag.name || tag)
+        }
+      ];
+    } else if (questionType === '编程题') {
+      return [
+        {
+          "title": "题目",
+          "type": "编程题",
+          "difficulty": difficulty,
+          "score": 20,
+          "correctAnswer": "参考代码实现",
+          "explanation": includeExplanation ? "评分标准和解析" : "",
           "tags": selectedTags.map(tag => tag.name || tag)
         }
       ];

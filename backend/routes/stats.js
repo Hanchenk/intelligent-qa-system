@@ -71,6 +71,7 @@ router.get('/student-dashboard', protect, authorize('student'), async (req, res)
     ]);
     
     // 计算学习进度百分比（已答题数量 / 总题目数量）
+    // 使用distinct查询来确保每个题目只计算一次，重复回答同一题目只算作一次
     const answeredQuestions = await Submission.find({ 
       user: req.user.id 
     }).distinct('question');
@@ -107,12 +108,19 @@ router.get('/student-dashboard', protect, authorize('student'), async (req, res)
     // 待完成考试数量
     const upcomingExamCount = upcomingExams.length;
     
+    // 获取学生总共回答过的题目数量（包括重复回答）
+    const totalAnswered = submissions.length;
+    
     res.json({
       success: true,
       stats: {
         progressPercentage,
         upcomingExamCount,
-        mistakeCount: finalMistakeCount
+        mistakeCount: finalMistakeCount,
+        // 添加额外信息以便前端可以显示更详细的统计
+        totalAnswered,  // 总共回答过的题目数量（包括重复回答）
+        uniqueAnswered: answeredQuestions.length, // 不重复的已回答题目数量
+        totalQuestions  // 系统中的总题目数量
       }
     });
   } catch (error) {

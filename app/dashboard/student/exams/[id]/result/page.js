@@ -22,11 +22,14 @@ import {
   Grid,
   Accordion,
   AccordionSummary,
-  AccordionDetails
+  AccordionDetails,
+  Rating
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
+import CodeIcon from '@mui/icons-material/Code';
+import QuestionAnswerIcon from '@mui/icons-material/QuestionAnswer';
 import axios from 'axios';
 
 export default function ExamResultPage({ params }) {
@@ -50,14 +53,25 @@ export default function ExamResultPage({ params }) {
         
         // 获取考试详情
         const examResponse = await axios.get(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/exams/teacher/${examId}`,
+          `${process.env.NEXT_PUBLIC_API_URL}/exams/teacher/${examId}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         
         setExam(examResponse.data);
         
-        // 这里应该还有一个获取考试结果的请求
-        // 由于我们目前没有单独的考试结果API，暂时使用URL参数中的score
+        // 获取学生考试提交情况
+        try {
+          const resultsResponse = await axios.get(
+            `${process.env.NEXT_PUBLIC_API_URL}/exams/student/${examId}/results`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          
+          setResults(resultsResponse.data.answers || []);
+        } catch (err) {
+          console.error('获取答题结果失败:', err);
+          // 如果API不可用，创建模拟数据
+          setResults([]);
+        }
         
         setLoading(false);
       } catch (error) {
@@ -90,6 +104,146 @@ export default function ExamResultPage({ params }) {
   
   // 计算是否通过考试
   const isPassed = score && exam?.passingScore ? parseInt(score) >= exam.passingScore : false;
+  
+  // 显示主观题评估结果
+  const renderSubjectiveEvaluation = (result) => {
+    if (!result || !result.aiEvaluation) return null;
+    
+    const evaluation = result.aiEvaluation;
+    
+    return (
+      <Box sx={{ mt: 2, p: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid #e0e0e0' }}>
+        <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+          AI评估结果
+        </Typography>
+        
+        {/* 分数评级 */}
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+          <Typography variant="body2" sx={{ mr: 1 }}>
+            得分评级:
+          </Typography>
+          <Rating 
+            value={Math.ceil(evaluation.score/20)} 
+            readOnly 
+            max={5}
+            size="small"
+          />
+          <Typography variant="body2" sx={{ ml: 1, color: 'text.secondary' }}>
+            ({evaluation.score}/100分)
+          </Typography>
+        </Box>
+        
+        {/* 总体评价 */}
+        <Typography variant="body2" sx={{ mb: 2, p: 1, bgcolor: '#f5f5f5', borderRadius: 1 }}>
+          {evaluation.feedback}
+        </Typography>
+        
+        {/* 评估详情 */}
+        <Accordion sx={{ mb: 1 }}>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Typography variant="body2">查看详细评估</Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            {/* 对于简答题 */}
+            {evaluation.keyPointsCovered && (
+              <>
+                <Typography variant="subtitle2" gutterBottom>已覆盖要点:</Typography>
+                <Box component="ul" sx={{ pl: 2, mb: 2 }}>
+                  {evaluation.keyPointsCovered.map((point, i) => (
+                    <Box component="li" key={i} sx={{ mb: 0.5 }}>
+                      <Typography variant="body2">{point}</Typography>
+                    </Box>
+                  ))}
+                </Box>
+                
+                {evaluation.missingPoints && evaluation.missingPoints.length > 0 && (
+                  <>
+                    <Typography variant="subtitle2" gutterBottom>遗漏要点:</Typography>
+                    <Box component="ul" sx={{ pl: 2, mb: 2 }}>
+                      {evaluation.missingPoints.map((point, i) => (
+                        <Box component="li" key={i} sx={{ mb: 0.5 }}>
+                          <Typography variant="body2" color="error.main">{point}</Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                  </>
+                )}
+                
+                {evaluation.misconceptions && evaluation.misconceptions.length > 0 && (
+                  <>
+                    <Typography variant="subtitle2" gutterBottom>概念误区:</Typography>
+                    <Box component="ul" sx={{ pl: 2, mb: 2 }}>
+                      {evaluation.misconceptions.map((point, i) => (
+                        <Box component="li" key={i} sx={{ mb: 0.5 }}>
+                          <Typography variant="body2" color="warning.main">{point}</Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                  </>
+                )}
+              </>
+            )}
+            
+            {/* 对于编程题 */}
+            {evaluation.strengthPoints && (
+              <>
+                <Typography variant="subtitle2" gutterBottom>代码优点:</Typography>
+                <Box component="ul" sx={{ pl: 2, mb: 2 }}>
+                  {evaluation.strengthPoints.map((point, i) => (
+                    <Box component="li" key={i} sx={{ mb: 0.5 }}>
+                      <Typography variant="body2">{point}</Typography>
+                    </Box>
+                  ))}
+                </Box>
+                
+                {evaluation.weaknessPoints && evaluation.weaknessPoints.length > 0 && (
+                  <>
+                    <Typography variant="subtitle2" gutterBottom>代码缺点:</Typography>
+                    <Box component="ul" sx={{ pl: 2, mb: 2 }}>
+                      {evaluation.weaknessPoints.map((point, i) => (
+                        <Box component="li" key={i} sx={{ mb: 0.5 }}>
+                          <Typography variant="body2" color="error.main">{point}</Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                  </>
+                )}
+                
+                {evaluation.codeAnalysis && (
+                  <>
+                    <Typography variant="subtitle2" gutterBottom>代码分析:</Typography>
+                    <Typography variant="body2" sx={{ mb: 2, p: 1, bgcolor: '#f5f5f5', borderRadius: 1 }}>
+                      {evaluation.codeAnalysis}
+                    </Typography>
+                  </>
+                )}
+              </>
+            )}
+            
+            {/* 通用 - 改进建议 */}
+            {(evaluation.improvementSuggestions || evaluation.improvement) && (
+              <>
+                <Typography variant="subtitle2" gutterBottom>改进建议:</Typography>
+                <Typography variant="body2" sx={{ mb: 2, p: 1, bgcolor: '#f9f9f9', borderRadius: 1 }}>
+                  {evaluation.improvementSuggestions || evaluation.improvement}
+                </Typography>
+              </>
+            )}
+            
+            {/* 参考答案 */}
+            {(evaluation.modelAnswer || evaluation.correctSolution) && (
+              <>
+                <Typography variant="subtitle2" gutterBottom color="primary">参考解答:</Typography>
+                <Typography variant="body2" sx={{ p: 1, bgcolor: '#e3f2fd', borderRadius: 1, fontFamily: evaluation.correctSolution ? 'monospace' : 'inherit' }}>
+                  {evaluation.modelAnswer || evaluation.correctSolution}
+                </Typography>
+              </>
+            )}
+          </AccordionDetails>
+        </Accordion>
+      </Box>
+    );
+  };
   
   return (
     <AuthGuard allowedRoles={['student']}>
@@ -146,65 +300,92 @@ export default function ExamResultPage({ params }) {
           
           <Divider sx={{ my: 4 }} />
           
-          {/* 错题记录 */}
+          {/* 题目清单与评估结果 */}
           <Box sx={{ mb: 4 }}>
             <Typography variant="h6" gutterBottom>
-              错题记录
+              答题详情
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              以下是您在本次考试中答错的题目，这些题目已添加到您的错题本中。
+              以下是您在本次考试中的答题情况，包括评分和反馈。
             </Typography>
             
             {exam && exam.questions ? (
               <List>
-                {exam.questions.filter(q => results.some(r => r.questionId === q.question._id && !r.isCorrect)).map((q, index) => (
-                  <Accordion key={index} sx={{ mb: 1 }}>
-                    <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Typography>
-                        {index + 1}. [{q.question.type}] {q.question.title}
-                      </Typography>
-                    </AccordionSummary>
-                    <AccordionDetails>
-                      <Box>
-                        <Typography variant="subtitle2" gutterBottom>
-                          正确答案：
-                        </Typography>
-                        <Typography variant="body2" color="success.main" gutterBottom>
-                          {q.question.correctAnswer}
-                        </Typography>
-                        
-                        <Typography variant="subtitle2" gutterBottom sx={{ mt: 1 }}>
-                          您的答案：
-                        </Typography>
-                        <Typography variant="body2" color="error.main" gutterBottom>
-                          {/* 这里应该显示用户的答案，由于没有完整的结果数据，暂时略过 */}
-                        </Typography>
-                        
-                        {q.question.explanation && (
-                          <>
-                            <Typography variant="subtitle2" gutterBottom sx={{ mt: 1 }}>
-                              解析：
-                            </Typography>
-                            <Typography variant="body2" gutterBottom>
-                              {q.question.explanation}
-                            </Typography>
-                          </>
-                        )}
-                      </Box>
-                    </AccordionDetails>
-                  </Accordion>
-                ))}
+                {exam.questions.map((q, index) => {
+                  const questionResult = results.find(r => r.questionId === q.question._id);
+                  const isCorrect = questionResult?.isCorrect || false;
+                  const isSubjective = q.question.type === '简答题' || q.question.type === '编程题';
+                  
+                  return (
+                    <Accordion key={index} sx={{ mb: 1 }}>
+                      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                          <Chip 
+                            size="small"
+                            icon={isSubjective ? 
+                              (q.question.type === '简答题' ? <QuestionAnswerIcon /> : <CodeIcon />) : 
+                              (isCorrect ? <CheckCircleIcon /> : <CancelIcon />)
+                            }
+                            label={q.question.type}
+                            color={isSubjective ? "primary" : isCorrect ? "success" : "error"}
+                            sx={{ mr: 2 }}
+                          />
+                          <Typography sx={{ flexGrow: 1 }}>
+                            {index + 1}. {q.question.title}
+                          </Typography>
+                          <Typography sx={{ ml: 2, color: isCorrect ? 'success.main' : 'error.main' }}>
+                            {questionResult ? questionResult.score : 0}/{q.score}分
+                          </Typography>
+                        </Box>
+                      </AccordionSummary>
+                      <AccordionDetails>
+                        <Box>
+                          <Typography variant="subtitle2" gutterBottom>
+                            正确答案:
+                          </Typography>
+                          <Typography variant="body2" color="success.main" gutterBottom sx={{ 
+                            whiteSpace: 'pre-wrap',
+                            fontFamily: q.question.type === '编程题' ? 'monospace' : 'inherit'
+                          }}>
+                            {q.question.correctAnswer || '未提供标准答案'}
+                          </Typography>
+                          
+                          <Typography variant="subtitle2" gutterBottom sx={{ mt: 1 }}>
+                            您的答案:
+                          </Typography>
+                          <Typography variant="body2" gutterBottom sx={{ 
+                            whiteSpace: 'pre-wrap',
+                            fontFamily: q.question.type === '编程题' ? 'monospace' : 'inherit'
+                          }}>
+                            {questionResult?.userAnswer || '未作答'}
+                          </Typography>
+                          
+                          {/* 显示主观题的AI评估结果 */}
+                          {isSubjective && renderSubjectiveEvaluation(questionResult)}
+                          
+                          {/* 显示传统解析 */}
+                          {q.question.explanation && !isSubjective && (
+                            <>
+                              <Typography variant="subtitle2" gutterBottom sx={{ mt: 1 }}>
+                                解析:
+                              </Typography>
+                              <Typography variant="body2" gutterBottom>
+                                {q.question.explanation}
+                              </Typography>
+                            </>
+                          )}
+                        </Box>
+                      </AccordionDetails>
+                    </Accordion>
+                  );
+                })}
                 
-                {exam.questions.filter(q => results.some(r => r.questionId === q.question._id && !r.isCorrect)).length === 0 && (
-                  <Alert severity="success" sx={{ mt: 2 }}>
-                    您答对了所有题目，真棒！
-                  </Alert>
+                {exam.questions.length === 0 && (
+                  <Alert severity="info">本次考试中没有题目</Alert>
                 )}
               </List>
             ) : (
-              <Alert severity="info">
-                暂无错题数据
-              </Alert>
+              <Alert severity="info">考试信息加载中或不可用</Alert>
             )}
           </Box>
           

@@ -278,9 +278,20 @@ export default function ExamPage({ params }) {
         answer: answers[questionId]
       }));
       
+      // 检查是否有主观题需要评估
+      const subjectiveQuestions = exam.questions.filter(q => 
+        q.question.type === '简答题' || q.question.type === '编程题'
+      );
+      
+      // 如果有主观题，先进行自动评估
+      let evaluatedAnswers = [...formattedAnswers];
+      if (subjectiveQuestions.length > 0) {
+        evaluatedAnswers = await evaluateSubjectiveAnswers(formattedAnswers, exam.questions);
+      }
+      
       const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/exams/student/${examId}/submit`, 
-        { answers: formattedAnswers },
+        `${process.env.NEXT_PUBLIC_API_URL}/exams/student/${examId}/submit`, 
+        { answers: evaluatedAnswers },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
@@ -291,6 +302,86 @@ export default function ExamPage({ params }) {
       setError(error.response?.data?.message || '提交考试失败');
       setIsSubmitting(false);
     }
+  };
+  
+  // 评估主观题答案
+  const evaluateSubjectiveAnswers = async (formattedAnswers, examQuestions) => {
+    const result = [...formattedAnswers];
+    
+    // 找出所有主观题
+    const subjectiveQuestions = examQuestions.filter(q => 
+      q.question.type === '简答题' || q.question.type === '编程题'
+    );
+    
+    console.log(`找到${subjectiveQuestions.length}道主观题需要评估`);
+    
+    // 遍历每个主观题进行评估
+    for (const question of subjectiveQuestions) {
+      const questionId = question.question._id;
+      const questionType = question.question.type; // 获取题目类型
+      const userAnswer = answers[questionId];
+      
+      // 如果用户没有回答此题，跳过评估
+      if (!userAnswer) {
+        console.log(`题目 ${questionId} 未作答，跳过评估`);
+        continue;
+      }
+      
+      try {
+        console.log(`开始评估${questionType}：`, questionId);
+        
+        // 调用后端API评估答案
+        const response = await axios.post(
+          `${process.env.NEXT_PUBLIC_API_URL}/llm/evaluate-answer`,
+          {
+            questionId,
+            questionContent: question.question.title,
+            standardAnswer: question.question.correctAnswer,
+            userAnswer,
+            questionType // 传递题目类型
+          },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        
+        console.log('评估API响应:', response.data);
+        
+        if (response.data.success && response.data.evaluation) {
+          // 找到对应的答案索引
+          const answerIndex = result.findIndex(a => a.questionId === questionId);
+          if (answerIndex !== -1) {
+            const evaluation = response.data.evaluation;
+            console.log(`评估结果：分数 ${evaluation.score}，反馈：${evaluation.feedback.substring(0, 50)}...`);
+            
+            // 更新答案对象，添加评估信息
+            result[answerIndex] = {
+              ...result[answerIndex],
+              score: Math.round((evaluation.score / 100) * question.score), // 将百分比分数转换为实际分数
+              feedback: evaluation.feedback,
+              isEvaluatedByAI: true,
+              aiEvaluation: evaluation // 保存完整的评估结果
+            };
+          }
+        } else {
+          console.error('评估响应无效：', response.data);
+          throw new Error('评估响应无效');
+        }
+      } catch (error) {
+        console.error(`评估主观题 ${questionId} 失败:`, error);
+        // 评估失败时设置默认评分（0分）和错误信息
+        const answerIndex = result.findIndex(a => a.questionId === questionId);
+        if (answerIndex !== -1) {
+          result[answerIndex] = {
+            ...result[answerIndex],
+            score: 0,
+            feedback: '自动评估失败，将由教师手动评分',
+            isEvaluatedByAI: false
+          };
+        }
+      }
+    }
+    
+    console.log('所有主观题评估完成，结果:', result);
+    return result;
   };
   
   // 检查是否所有题目都已作答

@@ -247,21 +247,27 @@ export default function ResultPage({ params }) {
   
   // 渲染问题和答案
   const renderQuestionReview = (question, userAnswer, index) => {
+    // 获取问题结果，包含评估信息
+    const questionResult = results?.results?.questionResults?.find(r => r.questionId === question.id);
+    const isSubjective = question.type === '简答题' || question.type === '编程题' || question.type === '填空题';
+    
+    // 检查是否有AI评估结果
+    const hasAiEvaluation = isSubjective && questionResult && questionResult.aiEvaluation;
+    
+    // 确定题目是否正确
     const isCorrect = (() => {
-      if (question.type === '多选题') {
-        const uAnswer = userAnswer || [];
-        const cAnswer = question.correctAnswer || [];
-        
-        return uAnswer.length === cAnswer.length && 
-          cAnswer.every(value => uAnswer.includes(value));
-      } else if (question.type === '编程题' || question.type === '填空题' || question.type === '简答题') {
-        // 这些题型需要后端或AI评估，这里简单地假设非空即正确
-        return userAnswer !== '';
-      } else {
-        return userAnswer === question.correctAnswer;
+      // 如果有明确的评估结果，使用评估结果
+      if (questionResult && questionResult.isCorrect !== undefined) {
+        return questionResult.isCorrect;
       }
+      // 否则使用传统判断方法 (注意：calculateResults已更新，此处逻辑可能简化)
+      // 这里可以信任 questionResult.isCorrect 的初步判断值
+      return questionResult?.isCorrect || false; 
     })();
     
+    // 获取用于显示的正确答案 (格式化后的用于客观题，原始的用于主观题参考)
+    const displayCorrectAnswer = isSubjective ? question.originalStandardAnswer : question.formattedCorrectAnswer;
+
     return (
       <Accordion key={question.id} defaultExpanded={index === 0}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
@@ -293,98 +299,198 @@ export default function ResultPage({ params }) {
             </Box>
             
             {/* 选项内容（如果有） */}
-            {question.options && (
+            {question.options && question.options.length > 0 && (
               <Box mb={3}>
                 <div className="option-list">
-                  {question.options.map((option) => (
-                    <div key={option.id} className="option-item mb-2">
-                      <Box display="flex" alignItems="flex-start">
-                        {/* 图标显示区域 */}
-                        <Box minWidth="32px">
-                          {question.type === '多选题' ? (
-                            (userAnswer || []).includes(option.id) ? (
-                              (question.correctAnswer || []).includes(option.id) ? (
+                  {question.options.map((option) => {
+                    const isOptionCorrect = question.type === '多选题' 
+                      ? (question.formattedCorrectAnswer || []).includes(option.id)
+                      : question.formattedCorrectAnswer === option.id;
+                    const isOptionSelected = question.type === '多选题'
+                      ? (userAnswer || []).includes(option.id)
+                      : userAnswer === option.id;
+
+                    return (
+                      <div key={option.id} className="option-item mb-2">
+                        <Box display="flex" alignItems="flex-start">
+                          {/* 图标显示区域 */}
+                          <Box minWidth="32px">
+                            {isOptionSelected ? (
+                              isOptionCorrect ? (
                                 <CheckCircleIcon fontSize="small" color="success" />
                               ) : (
                                 <CancelIcon fontSize="small" color="error" />
                               )
-                            ) : (question.correctAnswer || []).includes(option.id) ? (
+                            ) : isOptionCorrect ? (
                               <CheckCircleIcon fontSize="small" color="success" />
-                            ) : null
-                          ) : (
-                            userAnswer === option.id ? (
-                              option.id === question.correctAnswer ? (
-                                <CheckCircleIcon fontSize="small" color="success" />
-                              ) : (
-                                <CancelIcon fontSize="small" color="error" />
-                              )
-                            ) : option.id === question.correctAnswer ? (
-                              <CheckCircleIcon fontSize="small" color="success" />
-                            ) : null
-                          )}
+                            ) : null}
+                          </Box>
+                          
+                          {/* 选项内容区域 */}
+                          <Box 
+                            flex="1"
+                            color={isOptionSelected ? (isOptionCorrect ? 'success.main' : 'error.main') : (isOptionCorrect ? 'success.main' : 'inherit')}
+                          >
+                            <Typography component="span" fontWeight="medium">
+                              {option.id.toUpperCase()}. 
+                            </Typography>
+                            <OptionMarkdownPreview content={option.content} />
+                          </Box>
                         </Box>
-                        
-                        {/* 选项内容区域 */}
-                        <Box 
-                          flex="1"
-                          color={
-                            question.type === '多选题' ? (
-                              (userAnswer || []).includes(option.id) ? (
-                                (question.correctAnswer || []).includes(option.id) ? 'success.main' : 'error.main'
-                              ) : (question.correctAnswer || []).includes(option.id) ? 'success.main' : 'inherit'
-                            ) : (
-                              userAnswer === option.id ? (
-                                option.id === question.correctAnswer ? 'success.main' : 'error.main'
-                              ) : option.id === question.correctAnswer ? 'success.main' : 'inherit'
-                            )
-                          }
-                        >
-                          <Typography component="span" fontWeight="medium">
-                            {option.id.toUpperCase()}. 
-                          </Typography>
-                          <OptionMarkdownPreview content={option.content} />
-                        </Box>
-                      </Box>
-                    </div>
-                  ))}
+                      </div>
+                    );
+                  })}
                 </div>
               </Box>
             )}
             
-            {/* 用户答案（主观题） */}
-            {(question.type === '填空题' || question.type === '简答题' || question.type === '编程题') && (
-              <Box mb={3}>
-                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                  你的答案:
-                </Typography>
-                <Paper variant="outlined" className="p-3">
+            {/* 用户答案 */}
+            <Box mb={3}>
+              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                你的答案:
+              </Typography>
+              <Paper variant="outlined" className={`p-3 ${!isCorrect ? 'border-red-300' : ''}`}>
+                {isSubjective || question.type === '填空题' ? (
                   <Typography 
                     component="pre" 
-                    className={question.type === '编程题' ? 'font-mono text-sm' : ''}
+                    className={`${question.type === '编程题' ? 'font-mono text-sm' : ''} whitespace-pre-wrap`}
                   >
                     {userAnswer || '(未作答)'}
                   </Typography>
-                </Paper>
+                ) : (
+                  // 选择题/判断题显示选项内容
+                  <Typography>
+                    {userAnswer ? (
+                      question.options?.find(opt => opt.id === userAnswer)?.content || userAnswer
+                    ) : '(未作答)'}
+                  </Typography>
+                )}
+              </Paper>
+            </Box>
+            
+            {/* AI评估结果（如果有） */}
+            {hasAiEvaluation && (
+              <Box mb={3} p={2} bgcolor="background.paper" borderRadius={1} border="1px solid #e0e0e0">
+                <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                  AI评估结果
+                </Typography>
+                
+                {/* 分数 */}
+                {questionResult.aiEvaluation.score !== undefined && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <Typography variant="body2" sx={{ mr: 1 }}>
+                      得分:
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: questionResult.isCorrect ? 'success.main' : 'error.main', fontWeight: 'bold' }}>
+                      {questionResult.aiEvaluation.score}/100分
+                    </Typography>
+                  </Box>
+                )}
+                
+                {/* 总体评价 */}
+                {questionResult.aiEvaluation.feedback && (
+                  <Box mb={2} p={1} bgcolor="#f5f5f5" borderRadius={1}>
+                    <Typography variant="body2">
+                      {questionResult.aiEvaluation.feedback}
+                    </Typography>
+                  </Box>
+                )}
+                
+                {/* 详细评估（编程题） */}
+                {question.type === '编程题' && questionResult.aiEvaluation.strengthPoints && (
+                  <>
+                    <Typography variant="subtitle2" gutterBottom>代码优点:</Typography>
+                    <Box component="ul" sx={{ pl: 2, mb: 2 }}>
+                      {questionResult.aiEvaluation.strengthPoints.map((point, i) => (
+                        <Box component="li" key={i} sx={{ mb: 0.5 }}>
+                          <Typography variant="body2">{point}</Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                    
+                    {questionResult.aiEvaluation.weaknessPoints && (
+                      <>
+                        <Typography variant="subtitle2" gutterBottom>代码缺点:</Typography>
+                        <Box component="ul" sx={{ pl: 2, mb: 2 }}>
+                          {questionResult.aiEvaluation.weaknessPoints.map((point, i) => (
+                            <Box component="li" key={i} sx={{ mb: 0.5 }}>
+                              <Typography variant="body2" color="error.main">{point}</Typography>
+                            </Box>
+                          ))}
+                        </Box>
+                      </>
+                    )}
+                  </>
+                )}
+                
+                {/* 详细评估（简答题） */}
+                {question.type === '简答题' && questionResult.aiEvaluation.keyPointsCovered && (
+                  <>
+                    <Typography variant="subtitle2" gutterBottom>已覆盖要点:</Typography>
+                    <Box component="ul" sx={{ pl: 2, mb: 2 }}>
+                      {questionResult.aiEvaluation.keyPointsCovered.map((point, i) => (
+                        <Box component="li" key={i} sx={{ mb: 0.5 }}>
+                          <Typography variant="body2">{point}</Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                    
+                    {questionResult.aiEvaluation.missingPoints && (
+                      <>
+                        <Typography variant="subtitle2" gutterBottom>遗漏要点:</Typography>
+                        <Box component="ul" sx={{ pl: 2, mb: 2 }}>
+                          {questionResult.aiEvaluation.missingPoints.map((point, i) => (
+                            <Box component="li" key={i} sx={{ mb: 0.5 }}>
+                              <Typography variant="body2" color="error.main">{point}</Typography>
+                            </Box>
+                          ))}
+                        </Box>
+                      </>
+                    )}
+                  </>
+                )}
+                
+                {/* 改进建议 */}
+                {questionResult.aiEvaluation.improvementSuggestions && (
+                  <>
+                    <Typography variant="subtitle2" gutterBottom>改进建议:</Typography>
+                    <Box p={1} bgcolor="#f9f9f9" borderRadius={1}>
+                      <Typography variant="body2">
+                        {questionResult.aiEvaluation.improvementSuggestions}
+                      </Typography>
+                    </Box>
+                  </>
+                )}
               </Box>
             )}
             
-            {/* 正确答案（主观题） */}
-            {(question.type === '填空题' || question.type === '简答题' || question.type === '编程题') && 
-             question.correctAnswer && (
-              <Box mb={3}>
-                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                  参考答案:
-                </Typography>
-                <Paper variant="outlined" className="p-3 bg-gray-50">
+            {/* 正确答案 */}
+            <Box mb={3}>
+              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                {isSubjective ? '参考答案' : '正确答案'}:
+              </Typography>
+              <Paper variant="outlined" className="p-3 bg-green-50 border-green-300">
+                {isSubjective ? (
                   <Typography 
                     component="pre" 
-                    className={question.type === '编程题' ? 'font-mono text-sm' : ''}
+                    className={`${question.type === '编程题' ? 'font-mono text-sm' : ''} whitespace-pre-wrap`}
                   >
-                    {question.correctAnswer}
+                    {displayCorrectAnswer || '(未提供)'}
                   </Typography>
-                </Paper>
-              </Box>
-            )}
+                ) : (
+                   // 选择题/判断题显示选项内容
+                   <Typography>
+                    {question.type === '多选题' ? (
+                      (displayCorrectAnswer || []).map(id => 
+                        question.options?.find(opt => opt.id === id)?.content || id
+                      ).join(', ') || '(未提供)'
+                    ) : (
+                      question.options?.find(opt => opt.id === displayCorrectAnswer)?.content || displayCorrectAnswer || '(未提供)'
+                    )}
+                   </Typography>
+                )}
+              </Paper>
+            </Box>
             
             {/* 解释 */}
             {question.explanation && (

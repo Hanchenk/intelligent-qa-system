@@ -485,6 +485,10 @@ export const getUserStatistics = async (userId) => {
       stats.progressPercentage = progressData.progressPercentage;
       stats.upcomingExamCount = progressData.upcomingExamCount;
       stats.mistakeCount = progressData.mistakeCount;
+      // 添加新的统计字段
+      stats.totalAnswered = progressData.totalAnswered || 0;
+      stats.uniqueAnswered = progressData.uniqueAnswered || 0;
+      stats.totalQuestions = progressData.totalQuestions || 0;
     }
     
     // 保存统计数据

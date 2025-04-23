@@ -54,6 +54,25 @@ import TimerIcon from '@mui/icons-material/Timer';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
+// 确保API路径格式正确
+const ensureCorrectApiUrl = (url, endpoint) => {
+  // 移除URL尾部的斜杠
+  let baseUrl = url.replace(/\/+$/, '');
+  
+  // 如果URL已经包含/api且endpoint不是以/api开头
+  if (baseUrl.endsWith('/api') && !endpoint.startsWith('/api')) {
+    return `${baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+  }
+  
+  // 如果URL不包含/api且endpoint不是以/api开头
+  if (!baseUrl.endsWith('/api') && !endpoint.startsWith('/api')) {
+    return `${baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+  }
+  
+  // 其他情况
+  return `${baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+};
+
 export default function ExercisePage({ params }) {
   const router = useRouter();
   const { user } = useSelector((state) => state.auth);
@@ -69,7 +88,22 @@ export default function ExercisePage({ params }) {
   const [timeSpent, setTimeSpent] = useState(0);
   const [isFinishDialogOpen, setIsFinishDialogOpen] = useState(false);
   const [remainingTime, setRemainingTime] = useState(null);
+  const [isEvaluating, setIsEvaluating] = useState(false);
+  const [evaluationStatus, setEvaluationStatus] = useState({ current: 0, total: 0, message: '' });
   
+  // 载入练习数据之前，检查API_URL格式
+  useEffect(() => {
+    // 验证API_URL格式
+    console.log('当前使用的API_URL:', API_URL);
+    if (API_URL.endsWith('/api')) {
+      console.log('API_URL已包含/api路径');
+    } else if (!API_URL.endsWith('/')) {
+      console.log('API_URL不包含结尾的斜杠，这是正确的格式');
+    } else {
+      console.warn('API_URL格式可能有问题，包含结尾斜杠:', API_URL);
+    }
+  }, []);
+
   // 加载练习数据
   useEffect(() => {
     const fetchExercise = async () => {
@@ -107,7 +141,7 @@ export default function ExercisePage({ params }) {
         
         // 获取题目详情
         const questionPromises = exerciseData.questionIds.map(questionId => 
-          axios.get(`${API_URL}/questions/${questionId}`, {
+          axios.get(ensureCorrectApiUrl(API_URL, `/questions/${questionId}`), {
             headers: { Authorization: `Bearer ${token}` }
           })
         );
@@ -131,7 +165,10 @@ export default function ExercisePage({ params }) {
                 content: opt.text || opt.content,
                 isCorrect: opt.isCorrect
               })) : [],
-              correctAnswer: formatCorrectAnswer(questionData),
+              // 保留格式化后的答案用于客观题评分和显示
+              formattedCorrectAnswer: formatCorrectAnswer(questionData),
+              // 存储原始标准答案用于主观题评估
+              originalStandardAnswer: questionData.correctAnswer || questionData.answer || '', 
               explanation: questionData.explanation || ''
             };
           });
@@ -293,80 +330,178 @@ export default function ExercisePage({ params }) {
     }
   };
   
-  // 计算结果
-  const calculateResults = () => {
+  // 提交答案
+  const submitAnswers = async () => {
+    // 关闭可能存在的确认对话框
+    setIsFinishDialogOpen(false);
+    
+    try {
+      const subjectiveQuestions = questions.filter(q => 
+        q.type === '简答题' || q.type === '编程题'
+      );
+      const totalSubjective = subjectiveQuestions.length;
+      
+      // 初始计算结果 (只计算客观题)
+      let results = calculateObjectiveResults();
+      
+      // *** 开始评估前：显示加载框 ***
+      if (totalSubjective > 0) {
+        setIsEvaluating(true);
+        setEvaluationStatus({ current: 0, total: totalSubjective, message: '准备开始评估主观题...' });
+      }
+      
+      // 如果有主观题，进行自动评估
+      if (totalSubjective > 0) {
+        console.log(`找到${totalSubjective}道主观题需要评估`);
+        
+        let evaluatedCount = 0;
+        for (const question of subjectiveQuestions) {
+          evaluatedCount++;
+          const questionId = question.id;
+          const questionType = question.type;
+          const userAnswer = userAnswers[questionId];
+          const questionResultIndex = results.questionResults.findIndex(r => r.questionId === questionId);
+          
+          // *** 更新评估状态 ***
+          setEvaluationStatus({
+            current: evaluatedCount,
+            total: totalSubjective,
+            message: `正在评估第 ${evaluatedCount} / ${totalSubjective} 道主观题...`
+          });
+
+          // 如果用户没有回答此题或找不到结果条目，跳过评估
+          if (!userAnswer || questionResultIndex === -1) {
+            console.log(`题目 ${questionId} 未作答或结果不存在，跳过评估`);
+            continue;
+          }
+          
+          try {
+            console.log(`开始评估${questionType}：`, questionId);
+            
+            const apiPath = ensureCorrectApiUrl(API_URL, '/llm/evaluate-answer');
+            const requestData = {
+              questionId,
+              questionContent: question.title,
+              standardAnswer: question.originalStandardAnswer,
+              userAnswer,
+              questionType
+            };
+            
+            console.log('请求参数:', requestData);
+            
+            const response = await axios.post(
+              apiPath,
+              requestData,
+              { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+            );
+            
+            console.log('评估API响应:', response.data);
+            
+            if (response.data.success && response.data.evaluation) {
+              const evaluation = response.data.evaluation;
+              console.log(`评估结果：分数 ${evaluation.score}，反馈：${evaluation.feedback.substring(0, 50)}...`);
+              const isCorrect = evaluation.score >= 80;
+              
+              results.questionResults[questionResultIndex] = {
+                ...results.questionResults[questionResultIndex],
+                isCorrect: isCorrect,
+                score: Math.round(evaluation.score / 100),
+                feedback: evaluation.feedback,
+                aiEvaluation: evaluation
+              };
+            } else {
+              console.error('评估响应无效：', response.data);
+            }
+          } catch (error) {
+            console.error(`评估主观题 ${questionId} 失败:`, error);
+            console.error('错误详情:', error.response?.data || '无详细信息');
+            console.error('错误状态码:', error.response?.status);
+            // 评估失败，isCorrect 保持 false
+          }
+        }
+      }
+      
+      // *** 评估结束后：隐藏加载框 ***
+      setIsEvaluating(false);
+
+      // 在所有评估完成后，重新计算最终的总分和正确数
+      let finalCorrectCount = 0;
+      results.questionResults.forEach(result => {
+        if (result.isCorrect) {
+          finalCorrectCount++;
+        }
+      });
+      results.correctCount = finalCorrectCount;
+      results.totalScore = finalCorrectCount;
+      results.percentage = results.maxScore > 0 ? Math.round((finalCorrectCount / results.maxScore) * 100) : 0;
+
+      console.log('最终评估结果（包含主观题）:', results);
+      
+      // 保存到本地存储
+      localStorage.setItem('exerciseResults', JSON.stringify({
+        exerciseId,
+        exerciseTitle: exercise.title,
+        questions,
+        userAnswers,
+        results,
+        timeSpent,
+        tags: exercise.tags || []
+      }));
+      
+      // 跳转到结果页面
+      router.push(`/dashboard/student/exercises/${exerciseId}/result`);
+    } catch (error) {
+      // *** 出错时也要隐藏加载框 ***
+      setIsEvaluating(false);
+      console.error('提交答案时出错:', error);
+      console.error('错误详情:', error.response?.data || '无详细信息');
+      console.error('错误状态码:', error.response?.status);
+      alert(`提交答案失败: ${error.response?.data?.message || error.message}`);
+    }
+  };
+  
+  // *** 新增：仅计算客观题结果的函数 ***
+  const calculateObjectiveResults = () => {
     let correctCount = 0;
     let totalScore = 0;
     let maxScore = questions.length;
     let questionResults = [];
-    
-    questions.forEach((question, index) => {
+
+    questions.forEach((question) => {
       let isCorrect = false;
       let userAnswer = userAnswers[question.id];
-      
-      if (question.type === '多选题') {
-        const uAnswer = userAnswer || [];
-        const cAnswer = question.correctAnswer || [];
-        
-        // 检查数组长度是否相同且所有元素都匹配
-        isCorrect = uAnswer.length === cAnswer.length &&
-          cAnswer.every(value => uAnswer.includes(value));
-      } else if (question.type === '编程题' || question.type === '填空题' || question.type === '简答题') {
-        // 这些题型需要后端或AI评估，这里简单地假设非空即正确
-        isCorrect = userAnswer !== '';
-      } else {
-        // 单选题和判断题
-        isCorrect = userAnswer === question.correctAnswer;
-      }
-      
-      if (isCorrect) {
-        correctCount++;
-        totalScore++;
-      }
-      
-      // 添加到问题结果数组
+      const isSubjective = question.type === '简答题' || question.type === '编程题' || question.type === '填空题';
+
+      if (!isSubjective) { // 只处理客观题
+        if (question.type === '多选题') {
+          const uAnswer = userAnswer || [];
+          const cAnswer = question.formattedCorrectAnswer || [];
+          isCorrect = uAnswer.length === cAnswer.length && cAnswer.every(value => uAnswer.includes(value));
+        } else {
+          isCorrect = userAnswer === question.formattedCorrectAnswer;
+        }
+
+        if (isCorrect) {
+          correctCount++;
+          totalScore++;
+        }
+      } // 主观题 isCorrect 保持 false
+
       questionResults.push({
         questionId: question.id,
-        isCorrect,
+        isCorrect, 
         userAnswer,
-        correctAnswer: question.correctAnswer
+        correctAnswer: question.formattedCorrectAnswer 
       });
     });
-    
-    // 计算最终结果
+
     return {
-      totalScore,
-      maxScore,
-      percentage: Math.round((totalScore / maxScore) * 100),
-      correctCount,
-      questionResults  // 确保这个字段被包含在结果中
+      totalScore, // 客观题得分
+      maxScore,   // 总题数
+      percentage: maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0, // 基于客观题的百分比
+      correctCount, // 客观题正确数
+      questionResults 
     };
-  };
-  
-  // 提交答案
-  const submitAnswers = () => {
-    // 关闭对话框
-    setIsFinishDialogOpen(false);
-    
-    // 模拟提交
-    console.log('提交答案:', userAnswers);
-    
-    // 计算结果
-    const results = calculateResults();
-    
-    // 保存到本地存储，以便结果页面使用
-    localStorage.setItem('exerciseResults', JSON.stringify({
-      exerciseId,
-      exerciseTitle: exercise.title,
-      questions,
-      userAnswers,
-      results,
-      timeSpent,
-      tags: exercise.tags || []
-    }));
-    
-    // 跳转到结果页面
-    router.push(`/dashboard/student/exercises/${exerciseId}/result`);
   };
   
   // 格式化剩余时间
@@ -662,6 +797,31 @@ export default function ExercisePage({ params }) {
             </Button>
           </DialogActions>
         </Dialog>
+
+        {/* AI 评估加载对话框 (新增) */}
+        <Dialog
+          open={isEvaluating}
+          aria-labelledby="evaluating-dialog-title"
+          disableEscapeKeyDown
+          // disableBackdropClick // 可选：阻止点击背景关闭
+        >
+          <DialogTitle id="evaluating-dialog-title">正在评估主观题</DialogTitle>
+          <DialogContent>
+            <Box sx={{ width: '100%', mt: 2, mb: 2 }}>
+              <DialogContentText sx={{ mb: 1 }}>
+                {evaluationStatus.message || '请稍候...'}
+              </DialogContentText>
+              <LinearProgress
+                variant="determinate"
+                value={evaluationStatus.total > 0 ? (evaluationStatus.current / evaluationStatus.total) * 100 : 0}
+              />
+              <Typography variant="body2" sx={{ textAlign: 'right', mt: 1 }}>
+                {evaluationStatus.current} / {evaluationStatus.total}
+              </Typography>
+            </Box>
+          </DialogContent>
+        </Dialog>
+
       </div>
     </AuthGuard>
   );
