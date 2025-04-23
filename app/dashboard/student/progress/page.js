@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useSelector } from 'react-redux';
 import Link from 'next/link';
 import AuthGuard from '../../../components/AuthGuard';
@@ -10,6 +10,7 @@ import { getUserBookmarks } from '@/app/services/bookmarkService';
 import { useTheme } from '@mui/material/styles';
 import dynamic from 'next/dynamic';
 import axios from 'axios';
+import ReactMarkdown from 'react-markdown';
 
 // Material UI 组件
 import {
@@ -43,6 +44,7 @@ import {
   DialogContent,
   DialogActions,
   CardActions,
+  Snackbar
 } from '@mui/material';
 
 // Material Icons
@@ -64,6 +66,7 @@ import EqualizerIcon from '@mui/icons-material/Equalizer';
 import { EmojiEvents, CheckCircle, WarningAmber, ErrorOutline } from '@mui/icons-material';
 import HistoryIcon from '@mui/icons-material/History';
 import FitnessCenterIcon from '@mui/icons-material/FitnessCenter';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 
 // 动态导入 recharts 组件，并禁用 SSR
 const LineChart = dynamic(() => import('recharts').then(mod => mod.LineChart), { ssr: false });
@@ -348,7 +351,19 @@ export default function StudentProgressPage() {
   
   // 渲染知识点掌握情况
   const renderKnowledgePoints = () => {
-    if (!userStats || !userStats.tagMastery) {
+    if (!userStats || !userStats.exercisesByCategory) {
+      return (
+        <Typography color="textSecondary">
+          暂无知识点掌握数据
+        </Typography>
+      );
+    }
+    
+    // 从分类统计中获取数据
+    const categories = Object.entries(userStats.exercisesByCategory);
+    
+    // 如果没有数据，显示提示信息
+    if (categories.length === 0) {
       return (
         <Typography color="textSecondary">
           暂无知识点掌握数据
@@ -357,21 +372,21 @@ export default function StudentProgressPage() {
     }
     
     // 按掌握程度排序
-    const sortedTags = [...userStats.tagMastery].sort((a, b) => b.percentage - a.percentage);
+    const sortedCategories = [...categories].sort((a, b) => b[1].averageScore - a[1].averageScore);
     
     return (
       <Grid container spacing={2}>
-        {sortedTags.slice(0, 6).map((tag) => (
-          <Grid item xs={12} sm={6} md={4} key={tag.tag}>
+        {sortedCategories.slice(0, 6).map(([category, data]) => (
+          <Grid item xs={12} sm={6} md={4} key={category}>
             <Card variant="outlined" sx={{ height: '100%' }}>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
-                  {tag.tag}
+                  {category}
                 </Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                   <LinearProgress 
                     variant="determinate" 
-                    value={tag.percentage} 
+                    value={data.averageScore > 100 ? 100 : data.averageScore} 
                     sx={{ 
                       flexGrow: 1, 
                       mr: 2, 
@@ -380,21 +395,25 @@ export default function StudentProgressPage() {
                       backgroundColor: '#e0e0e0',
                       '& .MuiLinearProgress-bar': {
                         backgroundColor: 
-                          tag.percentage >= 80 ? theme.palette.success.main :
-                          tag.percentage >= 60 ? theme.palette.warning.main :
+                          data.averageScore >= 80 ? theme.palette.success.main :
+                          data.averageScore >= 60 ? theme.palette.warning.main :
                           theme.palette.error.main
                       }
                     }}
                   />
                   <Typography variant="body2" color="textSecondary">
-                    {tag.percentage.toFixed(1)}%
+                    {data.averageScore.toFixed(1)}%
                   </Typography>
                 </Box>
                 <Typography variant="body2" color="textSecondary">
-                  已答: {tag.total} 题 | 正确: {tag.correct} 题
+                  已完成: {data.count} 次练习
                 </Typography>
                 <Typography variant="body2" color="textSecondary">
-                  出现于 {tag.exerciseCount || 0} 个练习中
+                  掌握程度: {
+                    data.averageScore >= 80 ? '优秀' :
+                    data.averageScore >= 60 ? '良好' :
+                    data.averageScore >= 40 ? '一般' : '需加强'
+                  }
                 </Typography>
               </CardContent>
             </Card>
@@ -406,6 +425,27 @@ export default function StudentProgressPage() {
   
   // 渲染强项和弱项
   const renderStrengthsAndWeaknesses = () => {
+    // 检查userStats和exercisesByCategory是否存在
+    if (!userStats || !userStats.exercisesByCategory) {
+      return (
+        <Typography color="textSecondary">
+          暂无足够统计数据，请完成更多练习。
+        </Typography>
+      );
+    }
+    
+    // 从分类统计中提取标签的掌握程度
+    const categories = Object.entries(userStats.exercisesByCategory);
+    
+    // 区分优秀和需要加强的知识点
+    const excellentCategories = categories.filter(([_, data]) => 
+      data.averageScore >= 80 || (data.averageScore >= 60 && data.count >= 3)
+    );
+    
+    const weakCategories = categories.filter(([_, data]) => 
+      data.averageScore < 80 && !(data.averageScore >= 60 && data.count >= 3)
+    );
+
     return (
       <Box sx={{ mt: 4 }}>
         <Grid container spacing={3}>
@@ -417,16 +457,16 @@ export default function StudentProgressPage() {
                   <EmojiEvents sx={{ color: theme.palette.success.main, mr: 1 }} />
                   <Typography variant="h6">掌握得好的知识点</Typography>
                 </Box>
-                {userStats && userStats.strongTopics && userStats.strongTopics.length > 0 ? (
+                {excellentCategories.length > 0 ? (
                   <List dense>
-                    {userStats.strongTopics.slice(0, 5).map((topic) => (
-                      <ListItem key={topic.tag} disablePadding sx={{ mb: 1 }}>
+                    {excellentCategories.slice(0, 5).map(([category, data]) => (
+                      <ListItem key={category} disablePadding sx={{ mb: 1 }}>
                         <ListItemIcon sx={{ minWidth: 36 }}>
                           <CheckCircle sx={{ color: theme.palette.success.main }} />
                         </ListItemIcon>
                         <ListItemText 
-                          primary={topic.tag} 
-                          secondary={`${topic.percentage.toFixed(1)}% 正确率 (${topic.correct}/${topic.total})`} 
+                          primary={category} 
+                          secondary={`${data.averageScore.toFixed(1)}% 掌握度 (${data.count} 次练习)`} 
                         />
                       </ListItem>
                     ))}
@@ -448,16 +488,16 @@ export default function StudentProgressPage() {
                   <WarningAmber sx={{ color: theme.palette.error.main, mr: 1 }} />
                   <Typography variant="h6">需要加强的知识点</Typography>
                 </Box>
-                {userStats && userStats.weakTopics && userStats.weakTopics.length > 0 ? (
+                {weakCategories.length > 0 ? (
                   <List dense>
-                    {userStats.weakTopics.slice(0, 5).map((topic) => (
-                      <ListItem key={topic.tag} disablePadding sx={{ mb: 1 }}>
+                    {weakCategories.slice(0, 5).map(([category, data]) => (
+                      <ListItem key={category} disablePadding sx={{ mb: 1 }}>
                         <ListItemIcon sx={{ minWidth: 36 }}>
                           <ErrorOutline sx={{ color: theme.palette.error.main }} />
                         </ListItemIcon>
                         <ListItemText 
-                          primary={topic.tag} 
-                          secondary={`${topic.percentage.toFixed(1)}% 正确率 (${topic.correct}/${topic.total})`} 
+                          primary={category} 
+                          secondary={`${data.averageScore.toFixed(1)}% 掌握度 (${data.count} 次练习)`} 
                         />
                       </ListItem>
                     ))}
@@ -638,24 +678,28 @@ export default function StudentProgressPage() {
                   <Grid item xs={12} md={6}>
                     <Typography variant="subtitle1" fontWeight="medium" className="mb-2">
                       <EmojiEventsIcon fontSize="small" className="mr-1" color="success" />
-                      强项
+                      掌握得好的知识点
                     </Typography>
-                    {userStats.strongTopics && userStats.strongTopics.length > 0 ? (
-                      userStats.strongTopics.map((topic, index) => (
-                        <Box key={index} mb={1}>
-                          <Box display="flex" justifyContent="space-between" mb={0.5}>
-                            <Typography variant="body2">{topic.tag}</Typography>
-                            <Typography variant="body2" color="success.main">
-                              {topic.percentage.toFixed(1)}%
-                            </Typography>
+                    {userStats.exercisesByCategory && Object.entries(userStats.exercisesByCategory).some(([_, data]) => data.averageScore >= 80) ? (
+                      Object.entries(userStats.exercisesByCategory)
+                        .filter(([_, data]) => data.averageScore >= 80)
+                        .sort(([_, a], [__, b]) => b.averageScore - a.averageScore)
+                        .slice(0, 5)
+                        .map(([category, data], index) => (
+                          <Box key={index} mb={1}>
+                            <Box display="flex" justifyContent="space-between" mb={0.5}>
+                              <Typography variant="body2">{category}</Typography>
+                              <Typography variant="body2" color="success.main">
+                                {data.averageScore.toFixed(1)}%
+                              </Typography>
+                            </Box>
+                            <LinearProgress 
+                              variant="determinate" 
+                              value={data.averageScore > 100 ? 100 : data.averageScore} 
+                              color="success" 
+                            />
                           </Box>
-                          <LinearProgress 
-                            variant="determinate" 
-                            value={topic.percentage} 
-                            color="success" 
-                          />
-                        </Box>
-                      ))
+                        ))
                     ) : (
                       <Typography color="text.secondary">
                         尚未收集足够数据，继续练习以获取分析
@@ -667,24 +711,34 @@ export default function StudentProgressPage() {
                   <Grid item xs={12} md={6}>
                     <Typography variant="subtitle1" fontWeight="medium" className="mb-2">
                       <WarningIcon fontSize="small" className="mr-1" color="error" />
-                      弱项
+                      需要加强的知识点
                     </Typography>
-                    {userStats.weakTopics && userStats.weakTopics.length > 0 ? (
-                      userStats.weakTopics.map((topic, index) => (
-                        <Box key={index} mb={1}>
-                          <Box display="flex" justifyContent="space-between" mb={0.5}>
-                            <Typography variant="body2">{topic.tag}</Typography>
-                            <Typography variant="body2" color="error.main">
-                              {topic.percentage.toFixed(1)}%
-                            </Typography>
+                    {userStats.exercisesByCategory && Object.entries(userStats.exercisesByCategory).some(([_, data]) => data.averageScore < 80) ? (
+                      Object.entries(userStats.exercisesByCategory)
+                        .filter(([_, data]) => data.averageScore < 80)
+                        .sort(([_, a], [__, b]) => a.averageScore - b.averageScore)
+                        .slice(0, 5)
+                        .map(([category, data], index) => (
+                          <Box key={index} mb={1}>
+                            <Box display="flex" justifyContent="space-between" mb={0.5}>
+                              <Typography variant="body2">{category}</Typography>
+                              <Typography variant="body2" color="error.main">
+                                {data.averageScore.toFixed(1)}%
+                              </Typography>
+                            </Box>
+                            <LinearProgress 
+                              variant="determinate" 
+                              value={data.averageScore}
+                              sx={{
+                                '& .MuiLinearProgress-bar': {
+                                  backgroundColor: 
+                                    data.averageScore >= 60 ? theme.palette.warning.main : 
+                                    theme.palette.error.main
+                                }
+                              }}
+                            />
                           </Box>
-                          <LinearProgress 
-                            variant="determinate" 
-                            value={topic.percentage} 
-                            color="error" 
-                          />
-                        </Box>
-                      ))
+                        ))
                     ) : (
                       <Typography color="text.secondary">
                         尚未收集足够数据，继续练习以获取分析
@@ -710,6 +764,14 @@ export default function StudentProgressPage() {
       );
     }
     
+    // 显示掌握程度的辅助函数
+    const getMasteryLevel = (score) => {
+      if (score >= 80) return { text: '优秀', color: theme.palette.success.main };
+      if (score >= 60) return { text: '良好', color: theme.palette.warning.main };
+      if (score >= 40) return { text: '一般', color: theme.palette.info.main };
+      return { text: '需加强', color: theme.palette.error.main };
+    };
+    
     return (
       <Grid container spacing={3}>
         {/* 分类统计 */}
@@ -733,37 +795,134 @@ export default function StudentProgressPage() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {Object.entries(userStats.exercisesByCategory).map(([category, data]) => (
-                        <TableRow key={category}>
-                          <TableCell>{category}</TableCell>
-                          <TableCell align="center">{data.count}</TableCell>
-                          <TableCell align="center">
-                            {data.averageScore.toFixed(1)}%
-                          </TableCell>
-                          <TableCell align="right">
-                            <Box display="flex" alignItems="center" justifyContent="flex-end">
-                              <Box width="150px" mr={1}>
-                                <LinearProgress
-                                  variant="determinate"
-                                  value={data.averageScore > 100 ? 100 : data.averageScore}
-                                  color={data.averageScore >= 60 ? 'success' : 'error'}
-                                />
-                              </Box>
-                              <Typography variant="body2">
-                                {data.averageScore >= 80 ? '优秀' : 
-                                 data.averageScore >= 60 ? '良好' : 
-                                 data.averageScore >= 40 ? '一般' : '需加强'}
-                              </Typography>
-                            </Box>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {Object.entries(userStats.exercisesByCategory)
+                        .sort(([_, dataA], [__, dataB]) => dataB.averageScore - dataA.averageScore)
+                        .map(([category, data]) => {
+                          const masteryLevel = getMasteryLevel(data.averageScore);
+                          return (
+                            <TableRow key={category}>
+                              <TableCell>{category}</TableCell>
+                              <TableCell align="center">{data.count}</TableCell>
+                              <TableCell align="center">
+                                {data.averageScore.toFixed(1)}%
+                              </TableCell>
+                              <TableCell align="right">
+                                <Box display="flex" alignItems="center" justifyContent="flex-end">
+                                  <Box width="150px" mr={1}>
+                                    <LinearProgress
+                                      variant="determinate"
+                                      value={data.averageScore > 100 ? 100 : data.averageScore}
+                                      sx={{ 
+                                        backgroundColor: '#e0e0e0',
+                                        '& .MuiLinearProgress-bar': {
+                                          backgroundColor: masteryLevel.color
+                                        }
+                                      }}
+                                    />
+                                  </Box>
+                                  <Typography variant="body2" sx={{ color: masteryLevel.color, fontWeight: 'medium' }}>
+                                    {masteryLevel.text}
+                                  </Typography>
+                                </Box>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                     </TableBody>
                   </Table>
                 </TableContainer>
               ) : (
                 <Typography color="text.secondary" align="center" className="py-4">
                   暂无分类数据
+                </Typography>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+        
+        {/* 答题记录 */}
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                <HistoryIcon className="mr-1" />
+                答题记录
+              </Typography>
+              
+              {userStats && userStats.records && userStats.records.length > 0 ? (
+                <>
+                  <TableContainer>
+                    <Table>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>练习名称</TableCell>
+                          <TableCell align="center">日期</TableCell>
+                          <TableCell align="center">得分</TableCell>
+                          <TableCell align="center">用时</TableCell>
+                          <TableCell align="center">知识点</TableCell>
+                          <TableCell align="right">操作</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {userStats.records.map((record) => (
+                          <TableRow key={record.id}>
+                            <TableCell>
+                              <Typography variant="body2">
+                                {record.exerciseTitle}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="center">
+                              <Typography variant="body2">
+                                {formatDate(record.date)}
+                              </Typography>
+                              <Typography variant="caption" color="textSecondary">
+                                {new Date(record.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="center">
+                              <Chip 
+                                size="small"
+                                label={`${record.score.percentage}%`}
+                                color={
+                                  record.score.percentage >= 80 ? 'success' :
+                                  record.score.percentage >= 60 ? 'warning' : 'error'
+                                }
+                              />
+                            </TableCell>
+                            <TableCell align="center">
+                              {formatTime(record.timeSpent)}
+                            </TableCell>
+                            <TableCell align="center">
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, justifyContent: 'center' }}>
+                                {record.tags && record.tags.slice(0, 2).map((tag, idx) => (
+                                  <Chip key={idx} label={tag} size="small" variant="outlined" />
+                                ))}
+                                {record.tags && record.tags.length > 2 && (
+                                  <MuiTooltip title={record.tags.slice(2).join(', ')} arrow>
+                                    <Chip label={`+${record.tags.length - 2}`} size="small" variant="outlined" />
+                                  </MuiTooltip>
+                                )}
+                              </Box>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Button
+                                variant="text"
+                                color="primary"
+                                size="small"
+                                onClick={() => router.push(`/dashboard/student/exercises/${record.exerciseId}`)}
+                              >
+                                查看详情
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </>
+              ) : (
+                <Typography color="text.secondary" align="center" className="py-4">
+                  暂无答题记录
                 </Typography>
               )}
             </CardContent>
@@ -832,6 +991,24 @@ export default function StudentProgressPage() {
   // 在总览标签页内容中添加
   const renderOverviewTabContent = () => (
     <>
+      {/* 学习报告按钮 */}
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={handleGenerateFeedback}
+          disabled={reportLoading || !userStats || !userStats.records || userStats.records.length === 0}
+          startIcon={reportLoading ? <CircularProgress size={20} /> : <AssessmentIcon />}
+        >
+          生成个人学习报告
+        </Button>
+        {reportError && (
+          <Alert severity="error" sx={{ mt: 1 }}>
+            {reportError}
+          </Alert>
+        )}
+      </Box>
+
       {/* 整体进度 */}
       <Card variant="outlined" sx={{ mb: 3 }}>
         <CardContent>
@@ -927,52 +1104,85 @@ export default function StudentProgressPage() {
       {/* 强项和弱项 */}
       {renderStrengthsAndWeaknesses()}
       
-      {/* 近期得分 */}
+      {/* 个性化推荐题目 */}
       <Card variant="outlined" sx={{ mt: 3, mb: 3 }}>
         <CardContent>
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            近期得分
-          </Typography>
-          {userStats && userStats.records && userStats.records.length > 0 ? (
-            <TableContainer component={Paper} variant="outlined">
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>练习名称</TableCell>
-                    <TableCell align="center">完成时间</TableCell>
-                    <TableCell align="center">得分</TableCell>
-                    <TableCell align="center">用时</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {userStats.records.slice(0, 5).map((record) => (
-                    <TableRow key={record.id}>
-                      <TableCell>
-                        <MuiTooltip title={record.tags.join(', ')} arrow>
-                          <span>{record.exerciseTitle}</span>
-                        </MuiTooltip>
-                      </TableCell>
-                      <TableCell align="center">{formatDate(record.date)}</TableCell>
-                      <TableCell align="center">
-                        <Chip 
-                          size="small"
-                          label={`${record.score.percentage}%`}
-                          color={
-                            record.score.percentage >= 80 ? 'success' :
-                            record.score.percentage >= 60 ? 'warning' : 'error'
-                          }
-                        />
-                      </TableCell>
-                      <TableCell align="center">{formatTime(record.timeSpent)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          ) : (
-            <Typography color="textSecondary">
-              暂无练习记录
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, justifyContent: 'space-between' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <FitnessCenterIcon sx={{ color: theme.palette.primary.main, mr: 1 }} />
+              <Typography variant="h6">个性化练习推荐</Typography>
+            </Box>
+            <Button 
+              size="small" 
+              onClick={() => fetchRecommendations(userStats, true)}
+              disabled={recommendationsLoading}
+              startIcon={recommendationsLoading ? <CircularProgress size={16} /> : null}
+            >
+              重新生成
+            </Button>
+          </Box>
+          
+          {recommendationsLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
+              <CircularProgress size={24} />
+            </Box>
+          ) : recommendationsError ? (
+            <Alert severity="error" sx={{ mb: 2 }}>{recommendationsError}</Alert>
+          ) : recommendedQuestions.length === 0 ? (
+            <Typography color="textSecondary" align="center" sx={{ py: 2 }}>
+              {userStats?.weakTopics?.length === 0 
+                ? "目前没有发现明显的弱项，继续保持！" 
+                : "暂无个性化推荐题目"}
             </Typography>
+          ) : (
+            <Grid container spacing={2}>
+              {recommendedQuestions.map((question, index) => (
+                <Grid item xs={12} key={index}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Typography variant="subtitle1" gutterBottom>
+                        {index + 1}. {question.title}
+                      </Typography>
+                      
+                      {question.content && (
+                        <Typography variant="body2" color="textSecondary" paragraph>
+                          {question.content}
+                        </Typography>
+                      )}
+                      
+                      {question.type.includes('选题') && question.options && (
+                        <List dense>
+                          {question.options.map((option, optIndex) => (
+                            <ListItem key={optIndex}>
+                              <Chip 
+                                size="small" 
+                                label={option.text}
+                                variant={option.isCorrect ? "filled" : "outlined"}
+                                color={option.isCorrect ? "success" : "default"}
+                                sx={{ mr: 1 }}
+                              />
+                            </ListItem>
+                          ))}
+                        </List>
+                      )}
+                      
+                      <Box sx={{ display: 'flex', mt: 1, flexWrap: 'wrap', gap: 0.5 }}>
+                        <Chip size="small" label={question.difficulty} color="primary" variant="outlined" />
+                        <Chip size="small" label={question.type} color="secondary" variant="outlined" />
+                        {question.tags && question.tags.map((tag, idx) => (
+                          <Chip key={idx} size="small" label={tag} variant="outlined" />
+                        ))}
+                      </Box>
+                    </CardContent>
+                    <CardActions>
+                      <Button size="small" color="primary">
+                        开始练习
+                      </Button>
+                    </CardActions>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
           )}
         </CardContent>
       </Card>
@@ -1022,25 +1232,61 @@ export default function StudentProgressPage() {
   };
 
   // --- 个性化推荐 ---
-  const fetchRecommendations = async (currentStats) => { // 接收 stats 作为参数
-    if (!currentStats || !currentStats.weakTopics || currentStats.weakTopics.length === 0) {
-       console.log("没有发现明确的弱项，跳过推荐请求");
-       setRecommendedQuestions([]);
-       return;
+  const fetchRecommendations = async (currentStats, forceUpdate = false) => { // 接收 stats 作为参数
+    if (!currentStats) {
+      console.log("统计数据不存在，跳过推荐请求");
+      setRecommendedQuestions([]);
+      return;
     }
+    
     setRecommendationsLoading(true);
     setRecommendationsError(null);
+    
     try {
+      // 如果不是强制更新，先检查数据库中是否已有缓存的推荐题目
+      if (!forceUpdate) {
+        const checkApiEndpoint = ensureCorrectApiUrl(API_URL, '/llm/recommended-questions');
+        console.log("检查已保存的推荐题目:", checkApiEndpoint);
+
+        const checkResponse = await axios.get(
+          checkApiEndpoint,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        
+        if (checkResponse.data.success) {
+          // 如果存在已保存的推荐题目且不需要更新，直接使用
+          if (checkResponse.data.exists && !checkResponse.data.needsUpdate) {
+            console.log("使用已保存的推荐题目");
+            setRecommendedQuestions(checkResponse.data.questions || []);
+            setRecommendationsLoading(false);
+            return;
+          }
+        }
+      } else {
+        console.log("强制重新生成推荐题目");
+      }
+      
+      // 如果没有保存的推荐题目或需要更新，则重新请求
+      if (!currentStats.weakTopics || currentStats.weakTopics.length === 0) {
+        console.log("没有发现明确的弱项，从错题本中获取标签");
+        // 后端API会自动从错题本获取标签
+      }
+
       const apiEndpoint = ensureCorrectApiUrl(API_URL, '/llm/recommend-questions');
       console.log("调用题目推荐API:", apiEndpoint);
 
       const response = await axios.post(
         apiEndpoint,
-        { weakTopics: currentStats.weakTopics }, 
+        { 
+          weakTopics: currentStats.weakTopics || [], // 即使为空也发送请求，后端会从错题本获取标签
+          forceUpdate: forceUpdate // 告诉后端是否需要强制更新
+        }, 
         { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
       );
+      
       if (response.data.success) {
         setRecommendedQuestions(response.data.questions || []);
+        console.log(`获取到${response.data.questions.length}个推荐题目${response.data.fromCache ? '(已缓存)' : '(新生成)'}`);
       } else {
         setRecommendationsError(response.data.message || '获取推荐失败');
       }
@@ -1058,6 +1304,104 @@ export default function StudentProgressPage() {
       name: `练习 ${index + 1}`,
       score: record.results?.percentage || record.score?.percentage || 0, // 尝试兼容不同记录结构
     }));
+  };
+
+  // 生成个人学习报告
+  const handleGenerateFeedback = async () => {
+    if (!userStats || !userStats.records || userStats.records.length === 0) {
+      setReportError('暂无足够的学习数据，请先完成一些练习');
+      return;
+    }
+    
+    setReportLoading(true);
+    setReportError(null);
+    setLearningReport('');
+    
+    try {
+      // 准备提交历史数据
+      const submissionHistory = userStats.records.map(record => ({
+        question: {
+          title: record.exerciseTitle,
+          category: record.tags?.[0] || '未分类',
+          difficulty: '中等' // 假设难度，实际应该从记录中获取
+        },
+        isCorrect: record.score.percentage >= 60,
+        score: record.score.percentage
+      }));
+      
+      const apiEndpoint = ensureCorrectApiUrl(API_URL, '/llm/generate-feedback');
+      console.log("调用学习反馈API:", apiEndpoint);
+
+      const response = await axios.post(
+        apiEndpoint,
+        { 
+          userId: user.id,
+          submissionHistory: submissionHistory
+        }, 
+        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+      );
+      
+      if (response.data.success) {
+        // 将返回的JSON格式化为字符串显示
+        const feedback = response.data.feedback;
+        let reportText = `# 个人学习报告\n\n`;
+        
+        // 添加强项
+        reportText += `## 你的强项\n`;
+        if (feedback.strengths && feedback.strengths.length > 0) {
+          feedback.strengths.forEach(strength => {
+            reportText += `- ${strength}\n`;
+          });
+        } else {
+          reportText += `- 暂无明显强项\n`;
+        }
+        
+        // 添加弱项
+        reportText += `\n## 需要改进的地方\n`;
+        if (feedback.weaknesses && feedback.weaknesses.length > 0) {
+          feedback.weaknesses.forEach(weakness => {
+            reportText += `- ${weakness}\n`;
+          });
+        } else {
+          reportText += `- 暂无明显弱项\n`;
+        }
+        
+        // 添加改进建议
+        reportText += `\n## 改进建议\n`;
+        if (feedback.improvementSuggestions && feedback.improvementSuggestions.length > 0) {
+          feedback.improvementSuggestions.forEach(suggestion => {
+            reportText += `- ${suggestion}\n`;
+          });
+        } else {
+          reportText += `- 暂无具体建议\n`;
+        }
+        
+        // 添加下一步计划
+        reportText += `\n## 下一步学习计划\n`;
+        if (feedback.nextSteps && feedback.nextSteps.length > 0) {
+          feedback.nextSteps.forEach(step => {
+            reportText += `- ${step}\n`;
+          });
+        } else {
+          reportText += `- 暂无具体计划\n`;
+        }
+        
+        // 添加总结
+        if (feedback.summary) {
+          reportText += `\n## 总结\n${feedback.summary}\n`;
+        }
+        
+        setLearningReport(reportText);
+        setIsReportDialogOpen(true);
+      } else {
+        setReportError(response.data.message || '生成报告失败');
+      }
+    } catch (error) {
+      console.error("生成学习报告API调用失败:", error);
+      setReportError(`生成报告出错: ${error.response?.data?.message || error.message}`);
+    } finally {
+      setReportLoading(false);
+    }
   };
 
   return (
@@ -1163,21 +1507,48 @@ export default function StudentProgressPage() {
         </main>
 
         {/* 学习报告弹窗 */}    
-        <Dialog open={isReportDialogOpen} onClose={() => setIsReportDialogOpen(false)} maxWidth="md" fullWidth>
-          <DialogTitle>学习报告</DialogTitle>
-          <DialogContent dividers>
-            {learningReport ? (
-              <Typography style={{ whiteSpace: 'pre-wrap' }}>{learningReport}</Typography>
-            ) : (
-              <Typography color="textSecondary">报告内容为空。</Typography>
-            )}
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setIsReportDialogOpen(false)}>关闭</Button>
-          </DialogActions>
-        </Dialog>
+        <ReportDialog open={isReportDialogOpen} onClose={() => setIsReportDialogOpen(false)} report={learningReport} />
 
       </div>
     </AuthGuard>
   );
-} 
+}
+
+// 学习报告弹窗
+const ReportDialog = ({ open, onClose, report }) => {
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle sx={{ 
+        backgroundColor: 'primary.main', 
+        color: 'white',
+        display: 'flex',
+        alignItems: 'center'
+      }}>
+        <AssessmentIcon sx={{ mr: 1 }} />
+        个人学习报告
+      </DialogTitle>
+      <DialogContent dividers>
+        {report ? (
+          <Box sx={{ p: 2 }}>
+            <ReactMarkdown
+              components={{
+                h1: ({ node, ...props }) => <Typography variant="h4" color="primary" gutterBottom {...props} />,
+                h2: ({ node, ...props }) => <Typography variant="h6" color="primary" sx={{ mt: 2, mb: 1 }} {...props} />,
+                p: ({ node, ...props }) => <Typography variant="body1" paragraph {...props} />,
+                ul: ({ node, ...props }) => <Box component="ul" sx={{ pl: 2 }} {...props} />,
+                li: ({ node, ...props }) => <Typography component="li" variant="body1" sx={{ my: 0.5 }} {...props} />
+              }}
+            >
+              {report}
+            </ReactMarkdown>
+          </Box>
+        ) : (
+          <Typography color="textSecondary" align="center" py={3}>报告内容为空。</Typography>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} color="primary">关闭</Button>
+      </DialogActions>
+    </Dialog>
+  );
+}; 

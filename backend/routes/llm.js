@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
+const MistakeRecord = require('../models/MistakeRecord');
+const RecommendedQuestion = require('../models/RecommendedQuestion');
+const Tag = require('../models/Tag');
 
 // 大语言模型API调用函数
 const callDeepseek = async (messages) => {
@@ -492,6 +495,246 @@ ${jsonSample}
     res.status(500).json({
       success: false,
       message: '服务器错误'
+    });
+  }
+});
+
+// @route   POST /api/llm/recommend-questions
+// @desc    根据薄弱点推荐题目并保存
+// @access  Private
+router.post('/recommend-questions', protect, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { weakTopics, forceUpdate } = req.body;
+    const count = 3; // 默认推荐3道题
+
+    // 从错题本获取最新错题数量作为版本控制依据
+    const mistakeRecords = await MistakeRecord.find({
+      user: userId,
+      resolved: false
+    }).populate('question', 'tags');
+
+    const mistakeCount = mistakeRecords.length;
+
+    // 检查是否已有推荐题目存在数据库中
+    const existingRecommendation = await RecommendedQuestion.findOne({
+      user: userId
+    });
+
+    // 如果存在推荐且错题数量未改变且不是强制更新，直接返回已存在的推荐
+    if (!forceUpdate && existingRecommendation && existingRecommendation.mistakeCountVersion === mistakeCount) {
+      return res.json({
+        success: true,
+        questions: existingRecommendation.questions,
+        fromCache: true
+      });
+    }
+
+    // 如果没有提供弱项标签或弱项标签为空，则从错题本中获取
+    let topicsToUse = weakTopics;
+    if (!weakTopics || !Array.isArray(weakTopics) || weakTopics.length === 0) {
+      // 从错题本中提取标签
+      const tagCounts = {};
+      
+      for (const record of mistakeRecords) {
+        if (record.question && record.question.tags) {
+          // 为每个标签增加计数
+          for (const tagId of record.question.tags) {
+            if (!tagCounts[tagId]) {
+              tagCounts[tagId] = 0;
+            }
+            tagCounts[tagId]++;
+          }
+        }
+      }
+      
+      // 查询这些标签的详细信息
+      if (Object.keys(tagCounts).length > 0) {
+        const tags = await Tag.find({ _id: { $in: Object.keys(tagCounts) } });
+        
+        // 将标签转换为弱项格式
+        topicsToUse = tags.map(tag => ({
+          tag: tag.name,
+          count: tagCounts[tag._id.toString()] || 0,
+          percentage: 40 // 默认设置为较低掌握度
+        }));
+        
+        // 按出现频率排序并截取前3个
+        topicsToUse.sort((a, b) => b.count - a.count);
+        topicsToUse = topicsToUse.slice(0, 3);
+      }
+    }
+    
+    // 如果仍然没有可用的标签，返回错误
+    if (!topicsToUse || topicsToUse.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: '未找到弱项标签，且错题本为空，无法生成推荐'
+      });
+    }
+
+    // 将弱项格式化为字符串
+    const weakTopicsString = topicsToUse.map(topic => `"${topic.tag || topic}" (掌握度: ${topic.percentage || 'N/A'}%)`).join(', ');
+
+    const prompt = `你是一位专业的计算机科学教育专家，擅长根据学生的薄弱知识点推荐合适的练习题。
+学生的薄弱知识点是：${weakTopicsString}
+
+请根据这些薄弱知识点，为该学生推荐 ${count} 道相关的练习题，帮助他们巩固这些概念。题目类型和难度可以多样化，以覆盖不同的理解层次。
+
+请以JSON格式返回推荐的题目列表，格式如下：
+[
+  {
+    "title": "题目标题",
+    "content": "题目内容（如果是选择题，则不需要此字段）",
+    "type": "题目类型 (例如: 单选题, 多选题, 填空题, 简答题)",
+    "options": [
+      {"text": "选项A"},
+      {"text": "选项B"},
+      {"text": "选项C"},
+      {"text": "选项D"}
+    ], // 仅选择题需要，且不包含isCorrect字段
+    "correctAnswer": "正确答案", // 对于选择题是选项文本，例如 "选项A" 或 ["选项A", "选项B"]
+    "explanation": "详细解析",
+    "difficulty": "难度 (例如: 简单, 中等, 困难)",
+    "tags": ["相关标签1", "相关标签2"], // 确保包含与薄弱点相关的标签
+    "category": "主要类别" // 题目所属的主要类别或章节
+  }
+]
+
+注意事项:
+1. 生成内容必须严格遵循提供的JSON格式。
+2. 推荐的题目应直接针对学生列出的薄弱知识点。
+3. 选择题的 'options' 数组中只包含选项文本 'text'，不要包含 'isCorrect' 字段。正确答案在 'correctAnswer' 字段中指明。
+4. 对于多选题， 'correctAnswer' 应该是一个包含正确选项文本的数组。
+5. 请确保生成的JSON能够被直接解析，不要添加任何额外的说明文字。`;
+
+    const messages = [
+      {
+        role: 'user',
+        content: prompt
+      }
+    ];
+
+    console.log('向大语言模型请求题目推荐...');
+    const result = await callDeepseek(messages);
+
+    if (result.error) {
+      console.error('大语言模型API调用失败:', result.error);
+      return res.status(500).json({
+        success: false,
+        message: '推荐题目时调用大语言模型失败: ' + result.error
+      });
+    }
+
+    let questions;
+    try {
+      // 尝试从返回的内容中提取JSON
+      const contentText = result.choices[0].message.content;
+      const jsonMatch = contentText.match(/\[[\s\S]*\]/); // 匹配[...]数组格式
+
+      if (jsonMatch) {
+        questions = JSON.parse(jsonMatch[0]);
+         // 为选择题的选项添加 isCorrect 字段 (假设LLM不直接生成)
+         questions.forEach(q => {
+           if ((q.type === '单选题' || q.type === '多选题') && Array.isArray(q.options)) {
+             q.options = q.options.map(opt => ({
+               text: opt.text,
+               isCorrect: Array.isArray(q.correctAnswer)
+                 ? q.correctAnswer.includes(opt.text)
+                 : q.correctAnswer === opt.text
+             }));
+           }
+           // 确保 tags 是字符串数组
+           if (q.tags && !q.tags.every(t => typeof t === 'string')) {
+             q.tags = q.tags.map(tag => typeof tag === 'object' && tag.name ? tag.name : String(tag));
+           }
+         });
+        console.log(`成功获取 ${questions.length} 道推荐题目`);
+        
+        // 保存到数据库，如果已存在则更新
+        if (existingRecommendation) {
+          existingRecommendation.questions = questions;
+          existingRecommendation.mistakeCountVersion = mistakeCount;
+          existingRecommendation.updatedAt = new Date();
+          await existingRecommendation.save();
+        } else {
+          await RecommendedQuestion.create({
+            user: userId,
+            questions,
+            mistakeCountVersion: mistakeCount
+          });
+        }
+        
+        return res.json({
+          success: true,
+          questions,
+          fromCache: false
+        });
+      } else {
+        console.error('LLM返回的推荐题目JSON格式无效:', contentText);
+        throw new Error('无法解析大语言模型返回的推荐题目JSON');
+      }
+    } catch (error) {
+      console.error('处理推荐题目失败:', error);
+      return res.status(500).json({
+        success: false,
+        message: '处理推荐题目失败: ' + error.message
+      });
+    }
+  } catch (error) {
+    console.error('获取推荐题目失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取推荐题目失败: ' + error.message
+    });
+  }
+});
+
+// @route   GET /api/llm/recommended-questions
+// @desc    获取已保存的推荐题目
+// @access  Private
+router.get('/recommended-questions', protect, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // 从错题本获取最新错题数量
+    const mistakeCount = await MistakeRecord.countDocuments({
+      user: userId,
+      resolved: false
+    });
+    
+    // 查询保存的推荐题目
+    const savedRecommendation = await RecommendedQuestion.findOne({
+      user: userId
+    });
+    
+    if (!savedRecommendation) {
+      return res.json({
+        success: true,
+        exists: false,
+        needsUpdate: true,
+        message: '未找到保存的推荐题目'
+      });
+    }
+    
+    // 检查是否需要更新（错题数量变化）
+    const needsUpdate = savedRecommendation.mistakeCountVersion !== mistakeCount;
+    
+    return res.json({
+      success: true,
+      exists: true,
+      needsUpdate,
+      questions: savedRecommendation.questions,
+      mistakeCountVersion: {
+        saved: savedRecommendation.mistakeCountVersion,
+        current: mistakeCount
+      }
+    });
+  } catch (error) {
+    console.error('获取已保存推荐题目失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取已保存推荐题目失败: ' + error.message
     });
   }
 });

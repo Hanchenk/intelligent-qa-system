@@ -82,52 +82,36 @@ router.get('/student-dashboard', protect, authorize('student'), async (req, res)
     
     // 如果错题记录为空，使用旧的计算方法作为备用
     let finalMistakeCount = mistakeCount;
-    if (mistakeCount === 0) {
-      // 使用最新答题记录作为备用错题计算方法
-      const latestSubmissionsByQuestion = new Map();
-      
-      submissions.forEach(submission => {
-        const questionId = submission.question.toString();
-        const currentLatest = latestSubmissionsByQuestion.get(questionId);
-        
-        if (!currentLatest || submission.submittedAt > currentLatest.submittedAt) {
-          latestSubmissionsByQuestion.set(questionId, submission);
-        }
-      });
-      
-      let backupMistakeCount = 0;
-      latestSubmissionsByQuestion.forEach(submission => {
-        if (!submission.isCorrect) {
-          backupMistakeCount++;
-        }
-      });
-      
-      finalMistakeCount = backupMistakeCount;
+    
+    if (mistakeCount === 0 && submissions.length > 0) {
+      // 在提交记录中寻找错误答案
+      const incorrectSubmissions = submissions.filter(sub => !sub.isCorrect);
+      finalMistakeCount = incorrectSubmissions.length;
     }
     
-    // 待完成考试数量
-    const upcomingExamCount = upcomingExams.length;
-    
-    // 获取学生总共回答过的题目数量（包括重复回答）
+    // 计算总答题次数（包括重复作答）
     const totalAnswered = submissions.length;
     
+    // 计算唯一题目的数量
+    const uniqueAnswered = answeredQuestions.length;
+    
+    // 返回统计数据
     res.json({
       success: true,
       stats: {
-        progressPercentage,
-        upcomingExamCount,
+        progressPercentage, // 整体学习进度百分比
+        upcomingExamCount: upcomingExams.length,
         mistakeCount: finalMistakeCount,
-        // 添加额外信息以便前端可以显示更详细的统计
-        totalAnswered,  // 总共回答过的题目数量（包括重复回答）
-        uniqueAnswered: answeredQuestions.length, // 不重复的已回答题目数量
-        totalQuestions  // 系统中的总题目数量
+        totalAnswered, // 总答题次数（包括重复）
+        uniqueAnswered, // 不重复的题目数量
+        totalQuestions  // 系统中题目总数
       }
     });
   } catch (error) {
-    console.error('获取学生统计数据失败:', error);
+    console.error('获取学生仪表盘统计失败:', error);
     res.status(500).json({
       success: false,
-      message: '服务器错误，无法获取统计数据'
+      message: '获取统计数据失败'
     });
   }
 });
