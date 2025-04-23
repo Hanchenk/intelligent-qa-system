@@ -90,9 +90,15 @@ export default function TeacherQuestionsPage() {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      setAvailableTags(response.data || []);
+      // 确保保存为数组
+      const tagsData = Array.isArray(response.data) ? response.data : 
+                        (response.data && Array.isArray(response.data.data)) ? response.data.data : [];
+      
+      setAvailableTags(tagsData);
     } catch (err) {
       console.error('获取标签列表失败:', err);
+      // 初始化为空数组，避免后续过滤时出错
+      setAvailableTags([]);
     }
   };
   
@@ -161,8 +167,15 @@ export default function TeacherQuestionsPage() {
   
   // 处理标签筛选变更
   const handleTagsChange = (event, newValue) => {
-    setFilterTags(newValue.map(tag => tag._id));
-    setPage(1); // 重置页码
+    // 确保newValue是数组且每个元素都有_id属性
+    if (Array.isArray(newValue)) {
+      const tagIds = newValue.map(tag => tag._id).filter(Boolean);
+      setFilterTags(tagIds);
+      setPage(1); // 重置页码
+    } else {
+      // 如果newValue不是数组，则清空筛选
+      setFilterTags([]);
+    }
   };
   
   // 打开删除确认对话框
@@ -511,9 +524,11 @@ export default function TeacherQuestionsPage() {
                     <FormControl variant="outlined" size="small" sx={{ gridColumn: { md: 'span 2' } }}>
                       <Autocomplete
                         multiple
-                        options={availableTags}
-                        getOptionLabel={(option) => option.name}
-                        value={availableTags.filter(tag => filterTags.includes(tag._id))}
+                        options={Array.isArray(availableTags) ? availableTags : []}
+                        getOptionLabel={(option) => option.name || ''}
+                        value={(Array.isArray(availableTags) ? availableTags : []).filter(tag => 
+                          tag && tag._id && filterTags.includes(tag._id)
+                        )}
                         onChange={handleTagsChange}
                         renderInput={(params) => (
                           <TextField
@@ -527,10 +542,11 @@ export default function TeacherQuestionsPage() {
                         renderTags={(value, getTagProps) =>
                           value.map((option, index) => (
                             <Chip
-                              label={option.name}
+                              key={option._id || index}
+                              label={option.name || ''}
                               {...getTagProps({ index })}
                               size="small"
-                              style={{ backgroundColor: option.color, color: '#fff' }}
+                              style={{ backgroundColor: option.color || '#ccc', color: '#fff' }}
                             />
                           ))
                         }
@@ -544,10 +560,10 @@ export default function TeacherQuestionsPage() {
                                   height: 14, 
                                   mr: 1, 
                                   borderRadius: '50%', 
-                                  bgcolor: option.color 
+                                  bgcolor: option.color || '#ccc' 
                                 }} 
                               />
-                              {option.name}
+                              {option.name || '未命名标签'}
                             </Box>
                           </li>
                         )}
