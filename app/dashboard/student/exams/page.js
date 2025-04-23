@@ -97,67 +97,66 @@ export default function StudentExamsPage() {
       setLoading(true);
       console.log('正在获取学生考试列表...');
       
-      // 尝试从API获取考试列表
-      let examData = [];
+      // 使用正确的API路径获取考试列表
       try {
+        console.log('请求URL:', `${API_URL}/exams/student`);
+        console.log('使用token:', effectiveToken?.substring(0, 10) + '...');
+        
         const response = await axios.get(`${API_URL}/exams/student`, {
           headers: { Authorization: `Bearer ${effectiveToken}` }
         });
         
         console.log('API响应:', response.data);
         
+        // 确保正确处理API响应
+        let examData = [];
         if (response.data && Array.isArray(response.data)) {
           examData = response.data;
         } else if (response.data && response.data.data && Array.isArray(response.data.data)) {
           examData = response.data.data;
         }
-      } catch (apiError) {
-        console.error('API请求失败:', apiError.message);
         
-        // 使用备用URL尝试
-        try {
-          console.log('尝试备用URL:', `${API_URL}/student/exams`);
-          const backupResponse = await axios.get(`${API_URL}/student/exams`, {
-            headers: { Authorization: `Bearer ${effectiveToken}` }
-          });
-          
-          if (backupResponse.data && Array.isArray(backupResponse.data)) {
-            examData = backupResponse.data;
-          } else if (backupResponse.data && backupResponse.data.data && Array.isArray(backupResponse.data.data)) {
-            examData = backupResponse.data.data;
-          }
-        } catch (backupError) {
-          console.error('备用API请求也失败:', backupError.message);
-          // 使用模拟数据
-          examData = getMockExams();
-          console.log('使用模拟考试数据:', examData);
-          
+        if (examData.length === 0) {
+          console.log('服务器返回了空数组，可能没有可用的考试');
           setSnackbar({
             open: true,
-            message: '无法连接到服务器，显示模拟数据',
+            message: '目前没有进行中的考试',
+            severity: 'info'
+          });
+        } else {
+          setExams(examData);
+        }
+      } catch (apiError) {
+        console.error('API请求详细错误:', apiError);
+        
+        // 仅在开发环境中使用模拟数据
+        if (process.env.NODE_ENV === 'development') {
+          console.log('开发环境：使用模拟数据');
+          setExams(getMockExams());
+          setSnackbar({
+            open: true,
+            message: '开发模式：显示模拟考试数据',
             severity: 'warning'
+          });
+        } else {
+          setError('无法连接到服务器，请稍后再试');
+          setSnackbar({
+            open: true,
+            message: '获取考试列表失败：' + (apiError.response?.data?.message || apiError.message),
+            severity: 'error'
           });
         }
       }
       
-      if (examData.length === 0) {
-        console.log('没有考试数据，使用模拟数据');
-        examData = getMockExams();
-      }
-      
-      setExams(examData);
       setLoading(false);
     } catch (error) {
       console.error('获取考试列表失败:', error);
       setError('获取考试列表时出错');
-      
-      // 使用模拟数据确保页面可用
-      setExams(getMockExams());
       setLoading(false);
       
       setSnackbar({
         open: true,
-        message: '获取考试列表失败，显示模拟数据',
+        message: '获取考试列表失败，请刷新页面重试',
         severity: 'error'
       });
     }

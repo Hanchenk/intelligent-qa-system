@@ -52,7 +52,8 @@ router.get('/', protect, async (req, res) => {
       .limit(parseInt(limit))
       .sort({ createdAt: -1 })
       .populate('author', 'username role')
-      .populate('question', 'title');
+      .populate('question', 'title')
+      .populate('replies.author', 'username role');
 
     const total = await Discussion.countDocuments(query);
     

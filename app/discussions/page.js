@@ -273,13 +273,20 @@ export default function DiscussionsPage() {
                       </CardContent>
                       <CardActions>
                         <div className="flex justify-between w-full items-center">
-                          <div>
-                            <Chip 
-                              label={`${discussion.replies || 0} 回复`} 
-                              size="small" 
-                              color="default" 
-                              variant="outlined"
-                            />
+                          <div className="flex flex-col space-y-1">
+                            <div className="flex items-center">
+                              <Chip 
+                                label={`${discussion.replies?.length || 0} 回复`} 
+                                size="small" 
+                                color="default" 
+                                variant="outlined"
+                              />
+                            </div>
+                            {discussion.replies && discussion.replies.length > 0 && discussion.replies[discussion.replies.length - 1].author && (
+                              <Typography variant="caption" className="text-gray-600">
+                                最新回复: {discussion.replies[discussion.replies.length - 1].author.username || '未知用户'}
+                              </Typography>
+                            )}
                           </div>
                           <Button 
                             size="small" 

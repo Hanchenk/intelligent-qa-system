@@ -204,17 +204,25 @@ exports.deleteExam = async (req, res) => {
 exports.getStudentExams = async (req, res) => {
   try {
     const now = new Date();
+    console.log('获取学生考试列表，当前时间:', now);
     
     // 获取学生可见的所有考试（已开始但未结束的考试）
-    const exams = await Exam.find({
+    const query = {
       isActive: true,
       startTime: { $lte: now },
       endTime: { $gte: now }
-    })
+    };
+    
+    console.log('查询条件:', JSON.stringify(query));
+    
+    const exams = await Exam.find(query)
       .sort({ startTime: 1 })
       .populate('creator', 'name')
       .select('title description startTime endTime duration totalScore passingScore creator');
     
+    console.log(`找到 ${exams.length} 个进行中的考试`);
+    
+    // 如果没有考试，也返回空数组，前端会处理
     res.status(200).json(exams);
   } catch (error) {
     console.error('获取学生考试列表失败:', error);

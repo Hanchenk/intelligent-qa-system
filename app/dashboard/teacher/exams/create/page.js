@@ -372,6 +372,7 @@ export default function CreateExamPage() {
     // 构建考试数据
     const examData = {
       ...examInfo,
+      isActive: true,
       questions: selectedQuestions.map(q => ({
         question: q.question._id,
         questionId: q.question._id,
@@ -431,6 +432,7 @@ export default function CreateExamPage() {
           console.log('尝试简化数据格式并重新提交...');
           const simplifiedData = {
             ...examInfo,
+            isActive: true,
             questions: selectedQuestions.map(q => ({
               question: q.question._id,
               questionId: q.question._id,
