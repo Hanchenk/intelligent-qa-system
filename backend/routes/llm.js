@@ -4,6 +4,8 @@ const { protect, authorize } = require('../middleware/auth');
 const MistakeRecord = require('../models/MistakeRecord');
 const RecommendedQuestion = require('../models/RecommendedQuestion');
 const Tag = require('../models/Tag');
+const Question = require('../models/Question');
+const LearningReport = require('../models/LearningReport');
 
 // 大语言模型API调用函数
 const callDeepseek = async (messages) => {
@@ -311,45 +313,81 @@ ${userAnswer}
 });
 
 // @route   POST /api/llm/generate-feedback
-// @desc    生成学习反馈
+// @desc    生成学习反馈 (基于错题分析) 并保存到数据库
 // @access  Private
 router.post('/generate-feedback', protect, async (req, res) => {
   try {
-    const { userId, submissionHistory } = req.body;
+    const userId = req.user.id;
 
-    if (!submissionHistory || !Array.isArray(submissionHistory)) {
-      return res.status(400).json({
-        success: false,
-        message: '请提供有效的答题历史'
+    // 查询用户的未解决错题记录，并填充问题信息以获取标签
+    const mistakes = await MistakeRecord.find({ user: userId, resolved: false })
+      .populate({
+        path: 'question',
+        select: 'tags title',
+        populate: {
+          path: 'tags',
+          select: 'name'
+        }
+      });
+    
+    // 查询已解决的错题数量（用于统计）
+    const resolvedMistakesCount = await MistakeRecord.countDocuments({ 
+      user: userId, 
+      resolved: true 
+    });
+
+    if (!mistakes || mistakes.length === 0) {
+      return res.json({
+        success: true,
+        feedback: {
+          weaknesses: [],
+          improvementSuggestions: [],
+          recommendedResources: [],
+          summary: '您当前没有记录在案的错题，无法生成针对性的学习报告。请继续练习！'
+        }
       });
     }
 
-    // 准备提交历史数据
-    const historyText = submissionHistory.map(sub => {
-      return `题目: ${sub.question.title}
-类别: ${sub.question.category}
-难度: ${sub.question.difficulty}
-正确与否: ${sub.isCorrect ? '正确' : '错误'}
-得分: ${sub.score}
-`;
-    }).join('\n');
+    // 统计错题标签
+    const mistakeTags = {};
+    mistakes.forEach(mistake => {
+      if (mistake.question && mistake.question.tags) {
+        mistake.question.tags.forEach(tag => {
+          // 获取标签名称，而不是标签ID
+          const tagName = tag.name || tag;
+          mistakeTags[tagName] = (mistakeTags[tagName] || 0) + 1;
+        });
+      }
+    });
+    // 按错题数量降序排序
+    const sortedMistakeTags = Object.entries(mistakeTags).sort(([, a], [, b]) => b - a);
+    
+    // 转换为模型需要的格式
+    const mistakeTagsForSaving = sortedMistakeTags.map(([tag, count]) => ({
+      tag,
+      count
+    }));
 
-    const prompt = `根据以下学生的答题历史，请分析其学习情况并提供个性化学习建议。
+    // 构建错题标签分析文本
+    const tagAnalysis = sortedMistakeTags.map(([tag, count]) => `${tag} (${count}次错误)`).join(', ');
 
-学生答题历史：
-${historyText}
+    // 构建新的 Prompt
+    const prompt = `根据以下学生的错题标签统计，请分析其学习情况并提供个性化学习建议。
+
+学生错题标签统计 (按错误次数排序):
+${tagAnalysis}
 
 请分析以下方面：
-1. 学生的强项和弱项
-2. 针对弱项的改进建议
-3. 下一步学习计划建议
+1. 学生的主要弱项知识点 (基于错题标签，列出最重要的 3-5 个)
+2. 针对这些弱项知识点的具体改进建议 (例如，复习相关概念，做专项练习等)
+3. 推荐的学习资源或练习方向 (例如，推荐相关章节、特定类型的题目)
+4. 对学生当前学习状态的总结性评价
 
-请以JSON格式返回结果，格式如下：
+请以JSON格式返回结果，确保返回的JSON是有效的，并且只包含JSON内容，不要包含任何额外的解释性文本或代码块标记。格式如下：
 {
-  "strengths": ["学生的强项1", "学生的强项2"],
-  "weaknesses": ["学生的弱项1", "学生的弱项2"],
-  "improvementSuggestions": ["改进建议1", "改进建议2"],
-  "nextSteps": ["下一步学习计划1", "下一步学习计划2"],
+  "weaknesses": ["主要的弱项知识点1", "主要的弱项知识点2", ...],
+  "improvementSuggestions": ["具体的改进建议1", "具体的改进建议2", ...],
+  "recommendedResources": ["推荐的学习资源或方向1", "推荐的学习资源或方向2", ...],
   "summary": "总结性评价"
 }`;
 
@@ -363,9 +401,10 @@ ${historyText}
     const result = await callDeepseek(messages);
 
     if (result.error) {
+      console.error("LLM API Error:", result.error);
       return res.status(500).json({
         success: false,
-        message: result.error
+        message: `调用LLM服务失败: ${result.error}`
       });
     }
 
@@ -373,31 +412,157 @@ ${historyText}
     try {
       // 尝试从返回的内容中提取JSON
       const contentText = result.choices[0].message.content;
-      const jsonMatch = contentText.match(/\{[\s\S]*\}/);
-      
-      if (jsonMatch) {
-        feedback = JSON.parse(jsonMatch[0]);
-      } else {
-        throw new Error('无法解析返回的JSON');
+      // 尝试直接解析JSON，或者查找JSON格式的部分
+      try {
+        feedback = JSON.parse(contentText);
+      } catch (jsonError) {
+        // 如果直接解析失败，尝试从文本中提取JSON部分
+        const jsonMatch = contentText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          feedback = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error('无法从LLM响应中提取有效的JSON数据');
+        }
       }
-    } catch (error) {
-      console.error('解析反馈结果失败:', error);
+      
+      // 简单验证一下返回的结构是否符合预期
+      if (!feedback || !Array.isArray(feedback.weaknesses) || !Array.isArray(feedback.improvementSuggestions) || !Array.isArray(feedback.recommendedResources) || typeof feedback.summary !== 'string') {
+        console.error("LLM 返回的 JSON 结构不符合预期:", contentText);
+        throw new Error('LLM 返回的 JSON 结构不符合预期');
+      }
+      
+      // 生成 Markdown 格式的报告
+      let markdownReport = `# 个人学习报告 (基于错题分析)\n\n`;
+      
+      // 添加弱项 (主要知识点)
+      markdownReport += `## 主要弱项知识点 (基于错题)\n`;
+      if (feedback.weaknesses && feedback.weaknesses.length > 0) {
+        feedback.weaknesses.forEach(weakness => {
+          markdownReport += `- ${weakness}\n`;
+        });
+      } else {
+        markdownReport += `- 未发现明显的弱项知识点 (可能暂无错题记录)\n`;
+      }
+      
+      // 添加改进建议
+      markdownReport += `\n## 改进建议\n`;
+      if (feedback.improvementSuggestions && feedback.improvementSuggestions.length > 0) {
+        feedback.improvementSuggestions.forEach(suggestion => {
+          markdownReport += `- ${suggestion}\n`;
+        });
+      } else {
+        markdownReport += `- 暂无具体建议\n`;
+      }
+      
+      // 添加推荐资源/方向
+      markdownReport += `\n## 推荐学习资源与练习方向\n`;
+      if (feedback.recommendedResources && feedback.recommendedResources.length > 0) {
+        feedback.recommendedResources.forEach(resource => {
+          markdownReport += `- ${resource}\n`;
+        });
+      } else {
+        markdownReport += `- 暂无具体推荐\n`;
+      }
+      
+      // 添加总结
+      if (feedback.summary) {
+        markdownReport += `\n## 总结\n${feedback.summary}\n`;
+      }
+      
+      // 创建报告记录并保存到数据库
+      const newReport = new LearningReport({
+        user: userId,
+        content: feedback,
+        markdownReport,
+        mistakeStats: {
+          totalMistakes: mistakes.length,
+          resolvedMistakes: resolvedMistakesCount,
+          mistakeTags: mistakeTagsForSaving
+        }
+      });
+      
+      await newReport.save();
+      console.log(`为用户 ${userId} 保存学习报告 ID: ${newReport._id}`);
+      
+      // 将报告ID添加到响应中，前端可能需要用它直接跳转到报告详情
+      res.json({
+        success: true,
+        feedback,
+        reportId: newReport._id
+      });
+    } catch (e) {
+      console.error("解析 LLM 响应失败:", e);
+      console.error("原始 LLM 响应:", result.choices && result.choices[0] ? result.choices[0].message.content : result);
+      // 提供备用反馈，告知用户问题
       return res.status(500).json({
         success: false,
-        message: '解析反馈结果失败',
-        rawResponse: result.choices[0].message.content
+        message: '生成报告时解析AI反馈失败，请稍后重试。'
       });
     }
-
-    res.json({
-      success: true,
-      feedback
-    });
   } catch (error) {
-    console.error(error);
+    console.error('生成学习反馈失败:', error);
     res.status(500).json({
       success: false,
-      message: '服务器错误'
+      message: '服务器内部错误，生成学习反馈失败'
+    });
+  }
+});
+
+// @route   GET /api/llm/learning-reports
+// @desc    获取用户的学习报告列表
+// @access  Private
+router.get('/learning-reports', protect, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // 查询该用户的所有学习报告，按创建时间降序排列
+    const reports = await LearningReport.find({ user: userId })
+      .select('createdAt mistakeStats.totalMistakes')
+      .sort({ createdAt: -1 });
+    
+    res.json({
+      success: true,
+      reports: reports
+    });
+  } catch (error) {
+    console.error('获取学习报告列表失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '服务器内部错误，获取学习报告列表失败'
+    });
+  }
+});
+
+// @route   GET /api/llm/learning-reports/:id
+// @desc    获取特定学习报告详情
+// @access  Private
+router.get('/learning-reports/:id', protect, async (req, res) => {
+  try {
+    const reportId = req.params.id;
+    const userId = req.user.id;
+    
+    // 查询特定ID的报告，并验证是否属于当前用户
+    const report = await LearningReport.findOne({ 
+      _id: reportId,
+      user: userId 
+    });
+    
+    if (!report) {
+      return res.status(404).json({
+        success: false,
+        message: '报告不存在或无权访问'
+      });
+    }
+    
+    res.json({
+      success: true,
+      report: report
+    });
+  } catch (error) {
+    console.error('获取学习报告详情失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '服务器内部错误，获取学习报告详情失败'
     });
   }
 });
@@ -512,7 +677,14 @@ router.post('/recommend-questions', protect, async (req, res) => {
     const mistakeRecords = await MistakeRecord.find({
       user: userId,
       resolved: false
-    }).populate('question', 'tags');
+    }).populate({
+      path: 'question',
+      select: 'tags',
+      populate: {
+        path: 'tags',
+        select: 'name'
+      }
+    });
 
     const mistakeCount = mistakeRecords.length;
 
@@ -539,30 +711,27 @@ router.post('/recommend-questions', protect, async (req, res) => {
       for (const record of mistakeRecords) {
         if (record.question && record.question.tags) {
           // 为每个标签增加计数
-          for (const tagId of record.question.tags) {
-            if (!tagCounts[tagId]) {
-              tagCounts[tagId] = 0;
+          for (const tag of record.question.tags) {
+            // 获取标签名称而不是ID
+            const tagName = tag.name || tag;
+            if (!tagCounts[tagName]) {
+              tagCounts[tagName] = 0;
             }
-            tagCounts[tagId]++;
+            tagCounts[tagName]++;
           }
         }
       }
       
-      // 查询这些标签的详细信息
-      if (Object.keys(tagCounts).length > 0) {
-        const tags = await Tag.find({ _id: { $in: Object.keys(tagCounts) } });
-        
-        // 将标签转换为弱项格式
-        topicsToUse = tags.map(tag => ({
-          tag: tag.name,
-          count: tagCounts[tag._id.toString()] || 0,
-          percentage: 40 // 默认设置为较低掌握度
-        }));
-        
-        // 按出现频率排序并截取前3个
-        topicsToUse.sort((a, b) => b.count - a.count);
-        topicsToUse = topicsToUse.slice(0, 3);
-      }
+      // 将标签计数转换为弱项格式
+      topicsToUse = Object.entries(tagCounts).map(([tag, count]) => ({
+        tag: tag,
+        count: count,
+        percentage: 40 // 默认设置为较低掌握度
+      }));
+      
+      // 按出现频率排序并截取前3个
+      topicsToUse.sort((a, b) => b.count - a.count);
+      topicsToUse = topicsToUse.slice(0, 3);
     }
     
     // 如果仍然没有可用的标签，返回错误

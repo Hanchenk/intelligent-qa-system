@@ -997,7 +997,7 @@ export default function StudentProgressPage() {
           variant="contained"
           color="primary"
           onClick={handleGenerateFeedback}
-          disabled={reportLoading || !userStats || !userStats.records || userStats.records.length === 0}
+          disabled={reportLoading || !user}
           startIcon={reportLoading ? <CircularProgress size={20} /> : <AssessmentIcon />}
         >
           生成个人学习报告
@@ -1306,10 +1306,10 @@ export default function StudentProgressPage() {
     }));
   };
 
-  // 生成个人学习报告
+  // 生成个人学习报告 (基于错题分析)
   const handleGenerateFeedback = async () => {
-    if (!userStats || !userStats.records || userStats.records.length === 0) {
-      setReportError('暂无足够的学习数据，请先完成一些练习');
+    if (!user || !user.id) {
+      setReportError('用户未登录，无法生成报告');
       return;
     }
     
@@ -1318,52 +1318,35 @@ export default function StudentProgressPage() {
     setLearningReport('');
     
     try {
-      // 准备提交历史数据
-      const submissionHistory = userStats.records.map(record => ({
-        question: {
-          title: record.exerciseTitle,
-          category: record.tags?.[0] || '未分类',
-          difficulty: '中等' // 假设难度，实际应该从记录中获取
-        },
-        isCorrect: record.score.percentage >= 60,
-        score: record.score.percentage
-      }));
-      
       const apiEndpoint = ensureCorrectApiUrl(API_URL, '/llm/generate-feedback');
-      console.log("调用学习反馈API:", apiEndpoint);
+      console.log("调用学习反馈 (基于错题) API:", apiEndpoint);
 
+      // 只发送 userId，后端从 req.user 获取
       const response = await axios.post(
         apiEndpoint,
-        { 
-          userId: user.id,
-          submissionHistory: submissionHistory
-        }, 
+        { userId: user.id }, // 发送 userId，虽然后端会用 req.user.id
         { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
       );
       
       if (response.data.success) {
-        // 将返回的JSON格式化为字符串显示
-        const feedback = response.data.feedback;
-        let reportText = `# 个人学习报告\n\n`;
-        
-        // 添加强项
-        reportText += `## 你的强项\n`;
-        if (feedback.strengths && feedback.strengths.length > 0) {
-          feedback.strengths.forEach(strength => {
-            reportText += `- ${strength}\n`;
-          });
-        } else {
-          reportText += `- 暂无明显强项\n`;
+        // 如果后端返回了reportId，直接导航到报告详情页面
+        if (response.data.reportId) {
+          router.push(`/dashboard/student/reports/${response.data.reportId}`);
+          return;
         }
+
+        // 否则，依然展示老的弹窗报告方式
+        const feedback = response.data.feedback;
+        let reportText = `# 个人学习报告 (基于错题分析)\n\n`;
         
-        // 添加弱项
-        reportText += `\n## 需要改进的地方\n`;
+        // 添加弱项 (主要知识点)
+        reportText += `## 主要弱项知识点 (基于错题)\n`;
         if (feedback.weaknesses && feedback.weaknesses.length > 0) {
           feedback.weaknesses.forEach(weakness => {
             reportText += `- ${weakness}\n`;
           });
         } else {
-          reportText += `- 暂无明显弱项\n`;
+          reportText += `- 未发现明显的弱项知识点 (可能暂无错题记录)\n`;
         }
         
         // 添加改进建议
@@ -1376,14 +1359,14 @@ export default function StudentProgressPage() {
           reportText += `- 暂无具体建议\n`;
         }
         
-        // 添加下一步计划
-        reportText += `\n## 下一步学习计划\n`;
-        if (feedback.nextSteps && feedback.nextSteps.length > 0) {
-          feedback.nextSteps.forEach(step => {
-            reportText += `- ${step}\n`;
+        // 添加推荐资源/方向
+        reportText += `\n## 推荐学习资源与练习方向\n`;
+        if (feedback.recommendedResources && feedback.recommendedResources.length > 0) {
+          feedback.recommendedResources.forEach(resource => {
+            reportText += `- ${resource}\n`;
           });
         } else {
-          reportText += `- 暂无具体计划\n`;
+          reportText += `- 暂无具体推荐\n`;
         }
         
         // 添加总结
@@ -1394,11 +1377,14 @@ export default function StudentProgressPage() {
         setLearningReport(reportText);
         setIsReportDialogOpen(true);
       } else {
+        // 显示后端返回的更具体的错误信息
         setReportError(response.data.message || '生成报告失败');
       }
     } catch (error) {
-      console.error("生成学习报告API调用失败:", error);
-      setReportError(`生成报告出错: ${error.response?.data?.message || error.message}`);
+      console.error("生成学习报告 (基于错题) API调用失败:", error);
+      // 显示更详细的错误信息，包括后端可能返回的消息
+      const errorMessage = error.response?.data?.message || error.message || '生成报告出错，请稍后重试';
+      setReportError(`生成报告出错: ${errorMessage}`);
     } finally {
       setReportLoading(false);
     }
@@ -1498,6 +1484,15 @@ export default function StudentProgressPage() {
                       className="ml-4"
                     >
                       详细记录
+                    </Button>
+                    <Button 
+                      variant="outlined" 
+                      color="success" 
+                      onClick={() => router.push('/dashboard/student/reports')}
+                      startIcon={<AssessmentIcon />}
+                      className="ml-4"
+                    >
+                      学习报告
                     </Button>
                   </Box>
                 </>
