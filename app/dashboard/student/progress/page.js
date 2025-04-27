@@ -1085,17 +1085,12 @@ export default function StudentProgressPage() {
                   }
                 }} 
               />
-              {/* <Typography variant="caption" color="textSecondary" sx={{ mt: 0.5, display: 'block' }}>
+              <Typography variant="caption" color="textSecondary" sx={{ mt: 0.5, display: 'block' }}>
                 已回答不重复题目：{userStats.uniqueAnswered || 0} / {userStats.totalQuestions || 0}
-              </Typography> */}
-              {/* <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
+              </Typography>
+              <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
                 注：重复回答同一题目在整体学习进度中只计算一次
-              </Typography> */}
-              {userStats.totalAnswered > 0 && (
-                <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
-                  答题总次数：{userStats.totalAnswered}（包含重复作答）
-                </Typography>
-              )}
+              </Typography>
             </Box>
           )}
         </CardContent>

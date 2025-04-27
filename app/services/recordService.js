@@ -201,9 +201,6 @@ export const saveExerciseRecord = async (record) => {
       return null;
     }
 
-    // 获取现有记录
-    const existingRecords = getExerciseRecords() || [];
-    
     // 创建新记录
     const newRecord = {
       ...record,
@@ -212,16 +209,63 @@ export const saveExerciseRecord = async (record) => {
       type: 'exercise'
     };
     
-    // 添加到记录列表并保存
+    // 保存到本地存储作为备份
+    const existingRecords = getExerciseRecords() || [];
     const updatedRecords = [newRecord, ...existingRecords];
     localStorage.setItem('qa_records', JSON.stringify(updatedRecords));
     
-    // 更新统计信息
-    await updateStatistics(newRecord);
-
+    // 同步到MongoDB数据库 - 为每个题目创建提交记录
+    const token = localStorage.getItem('token');
+    if (token && record.questions && Array.isArray(record.questions)) {
+      console.log('同步练习记录到MongoDB数据库...');
+      
+      // 批量处理所有题目的提交
+      const submissionPromises = record.questions.map(async (question, index) => {
+        try {
+          // 获取问题结果
+          const questionResult = record.results.questionResults?.[index];
+          if (!questionResult) return null;
+          
+          // 获取用户答案
+          const userAnswer = record.answers ? record.answers[question.id] : null;
+          
+          // 构建提交数据
+          const submissionData = {
+            questionId: question.id,
+            userAnswer: userAnswer,
+            isCorrect: questionResult.isCorrect,
+            score: questionResult.score || 0,
+            timeSpent: record.timeSpent || 0
+          };
+          
+          // 发送到服务器
+          const response = await fetch(`${apiBaseUrl}/api/submissions/create`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(submissionData)
+          });
+          
+          if (!response.ok) {
+            throw new Error(`提交记录同步失败: ${response.status}`);
+          }
+          
+          return await response.json();
+        } catch (error) {
+          console.error(`题目 ${question.id} 提交记录同步失败:`, error);
+          return null;
+        }
+      });
+      
+      // 等待所有提交完成
+      await Promise.all(submissionPromises);
+      console.log('练习记录同步完成');
+    }
+    
     // 自动将错误的题目添加到错题本数据库
     if (record.questions && Array.isArray(record.questions) && record.results && record.results.questionResults) {
-      const token = localStorage.getItem('token');
       if (token) {
         console.log('开始同步错题到数据库...');
         // 遍历所有题目，找出回答错误的
@@ -250,7 +294,10 @@ export const saveExerciseRecord = async (record) => {
         console.warn('未找到令牌，无法同步错题到数据库');
       }
     }
-    
+
+    // 更新统计信息
+    await updateStatistics(newRecord);
+
     return newRecord;
   } catch (error) {
     console.error('保存练习记录失败:', error);
@@ -426,72 +473,161 @@ export const getUserStatistics = async (userId) => {
   try {
     if (!userId) return null;
     
-    // 首先尝试从后端API获取最新的学习进度数据
-    let progressData = null;
+    // 初始化统计数据对象
+    let stats = {
+      userId,
+      totalExercises: 0,
+      totalQuestions: 0,
+      correctQuestions: 0,
+      totalScore: 0,
+      averageScore: 0,
+      exercisesByCategory: {},
+      recentScores: [],
+      strongTopics: [],
+      weakTopics: [],
+      progressPercentage: 0,
+      upcomingExamCount: 0,
+      mistakeCount: 0,
+      totalAnswered: 0,
+      uniqueAnswered: 0,
+      lastUpdated: new Date().toISOString()
+    };
+    
+    // 从后端API获取学习进度数据（主要数据来源）
     try {
       const token = localStorage.getItem('token');
       if (token) {
-        const response = await fetch(`${apiBaseUrl}/api/stats/student-dashboard`, {
+        // 获取学习进度数据
+        const progressResponse = await fetch(`${apiBaseUrl}/api/stats/student-dashboard`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
         });
         
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success) {
-            progressData = result.stats;
+        if (progressResponse.ok) {
+          const progressResult = await progressResponse.json();
+          if (progressResult.success) {
+            // 更新核心学习进度数据
+            stats.progressPercentage = progressResult.stats.progressPercentage;
+            stats.upcomingExamCount = progressResult.stats.upcomingExamCount;
+            stats.mistakeCount = progressResult.stats.mistakeCount;
+            stats.totalAnswered = progressResult.stats.totalAnswered || 0;
+            stats.uniqueAnswered = progressResult.stats.uniqueAnswered || 0;
+            stats.totalQuestions = progressResult.stats.totalQuestions || 0;
+          }
+        }
+        
+        // 获取用户提交记录的详细数据（用于计算标签掌握情况）
+        const submissionsResponse = await fetch(`${apiBaseUrl}/api/users/${userId}/submissions`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (submissionsResponse.ok) {
+          const submissionsResult = await submissionsResponse.json();
+          if (submissionsResult.success && submissionsResult.submissions.length > 0) {
+            // 处理提交记录，计算标签掌握情况
+            const submissions = submissionsResult.submissions;
+            
+            // 更新总体答题数据
+            stats.totalExercises = submissions.length;
+            stats.correctQuestions = submissions.filter(sub => sub.isCorrect).length;
+            
+            // 处理标签掌握情况
+            const tagMastery = {};
+            
+            submissions.forEach(submission => {
+              if (submission.question && submission.question.tags) {
+                const isCorrect = submission.isCorrect;
+                
+                // 遍历题目标签
+                submission.question.tags.forEach(tag => {
+                  // 确保标签是字符串
+                  const tagName = typeof tag === 'object' ? tag.name : tag;
+                  
+                  if (!tagMastery[tagName]) {
+                    tagMastery[tagName] = { correct: 0, total: 0, exerciseCount: 0 };
+                  }
+                  
+                  tagMastery[tagName].total += 1;
+                  tagMastery[tagName].exerciseCount += 1;
+                  
+                  if (isCorrect) {
+                    tagMastery[tagName].correct += 1;
+                  }
+                });
+              }
+              
+              // 获取最近成绩记录
+              if (submission.score !== undefined) {
+                stats.recentScores.push({
+                  exerciseId: submission.question ? submission.question._id : 'unknown',
+                  exerciseTitle: submission.question ? submission.question.title : '未知题目',
+                  score: submission.score,
+                  timestamp: submission.submittedAt
+                });
+              }
+            });
+            
+            // 计算标签掌握百分比
+            const tagMasteryWithPercentage = Object.entries(tagMastery).map(([tag, data]) => ({
+              tag,
+              correct: data.correct,
+              total: data.total,
+              percentage: data.total > 0 ? Math.round((data.correct / data.total) * 100) : 0,
+              exerciseCount: data.exerciseCount || 0
+            }));
+            
+            // 找出强项和弱项（至少有3个问题）
+            const strongTopics = tagMasteryWithPercentage
+              .filter(item => item.total >= 3 && item.percentage >= 80)
+              .sort((a, b) => b.percentage - a.percentage);
+              
+            const weakTopics = tagMasteryWithPercentage
+              .filter(item => item.total >= 3 && item.percentage < 60)
+              .sort((a, b) => a.percentage - b.percentage);
+            
+            // 更新统计信息
+            stats.tagMastery = tagMasteryWithPercentage;
+            stats.strongTopics = strongTopics;
+            stats.weakTopics = weakTopics;
+            
+            // 只保留最近10次的成绩
+            stats.recentScores = stats.recentScores
+              .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+              .slice(0, 10);
           }
         }
       }
     } catch (error) {
       console.error('从API获取学习进度失败:', error);
-      // 失败时继续使用本地数据
+      // 失败时可以回退到本地数据
     }
     
-    // 尝试从localStorage获取统计信息
-    const statsString = localStorage.getItem(`qa_stats_${userId}`);
-    let stats = null;
-    
-    if (statsString) {
-      stats = JSON.parse(statsString);
+    // 如果后端API获取失败，尝试从localStorage获取备份统计信息
+    if (stats.totalAnswered === 0 && stats.tagMastery === undefined) {
+      const statsString = localStorage.getItem(`qa_stats_${userId}`);
+      
+      if (statsString) {
+        const localStats = JSON.parse(statsString);
+        // 合并本地数据，但优先使用后端数据
+        stats = { ...localStats, ...stats };
+      }
+      
+      // 如果本地也没有，尝试从本地练习记录计算
+      if (stats.totalExercises === 0) {
+        const records = getExerciseRecords(userId);
+        if (records.length > 0) {
+          // 计算本地统计数据作为备份
+          const localCalculatedStats = calculateStatistics(records, userId);
+          // 合并本地计算的统计数据，但依然优先使用后端数据
+          stats = { ...localCalculatedStats, ...stats };
+        }
+      }
     }
     
-    // 如果没有统计信息，则计算
-    const records = getExerciseRecords(userId);
-    if (!stats) {
-      stats = {
-        userId,
-        totalExercises: 0,
-        totalQuestions: 0,
-        correctQuestions: 0,
-        totalScore: 0,
-        averageScore: 0,
-        exercisesByCategory: {},
-        recentScores: [],
-        strongTopics: [],
-        weakTopics: []
-      };
-    }
-    
-    // 如果有本地记录，计算本地统计数据
-    if (records.length > 0) {
-      // 计算初始统计数据
-      stats = calculateStatistics(records, userId);
-    }
-    
-    // 如果从API获取了数据，则更新整体学习进度
-    if (progressData) {
-      stats.progressPercentage = progressData.progressPercentage;
-      stats.upcomingExamCount = progressData.upcomingExamCount;
-      stats.mistakeCount = progressData.mistakeCount;
-      // 添加新的统计字段
-      stats.totalAnswered = progressData.totalAnswered || 0;
-      stats.uniqueAnswered = progressData.uniqueAnswered || 0;
-      stats.totalQuestions = progressData.totalQuestions || 0;
-    }
-    
-    // 保存统计数据
+    // 保存统计数据到localStorage作为缓存
     localStorage.setItem(`qa_stats_${userId}`, JSON.stringify(stats));
     
     return stats;

@@ -7,6 +7,7 @@ const Exam = require('../models/Exam');
 const Submission = require('../models/Submission');
 const MistakeRecord = require('../models/MistakeRecord');
 const User = require('../models/User');
+const LearningProgress = require('../models/LearningProgress');
 
 // @route   GET /api/stats/dashboard
 // @desc    获取教师仪表盘统计数据
@@ -48,11 +49,12 @@ router.get('/dashboard', protect, authorize('teacher'), async (req, res) => {
 router.get('/student-dashboard', protect, authorize('student'), async (req, res) => {
   try {
     const now = new Date();
+    const userId = req.user.id;
     
     // 并行请求所有统计数据以提高性能
-    const [submissions, upcomingExams, totalQuestions, mistakeCount] = await Promise.all([
-      // 获取学生的所有提交记录
-      Submission.find({ user: req.user.id }),
+    const [submissions, upcomingExams, totalQuestions, mistakeCount, progressRecord] = await Promise.all([
+      // 获取学生的所有提交记录（用于计算基本统计）
+      Submission.find({ user: userId }),
       
       // 获取未来的考试（考试开始时间大于当前时间）
       Exam.find({ 
@@ -65,15 +67,42 @@ router.get('/student-dashboard', protect, authorize('student'), async (req, res)
       
       // 获取学生的错题数量（未标记为已解决的）
       MistakeRecord.countDocuments({ 
-        user: req.user.id,
+        user: userId,
         resolved: false
-      })
+      }),
+      
+      // 获取用户的学习进度记录（包含更详细的统计数据）
+      LearningProgress.findOne({ user: userId })
     ]);
     
+    // 如果已有详细的学习进度记录且在24小时内更新过，优先使用该记录
+    if (progressRecord && 
+        progressRecord.lastUpdated && 
+        (now - new Date(progressRecord.lastUpdated)) < 24 * 60 * 60 * 1000) {
+      // 返回学习进度记录中的统计数据（更详细）
+      return res.json({
+        success: true,
+        stats: {
+          progressPercentage: progressRecord.progressPercentage,
+          upcomingExamCount: upcomingExams.length,
+          mistakeCount: mistakeCount,
+          totalAnswered: progressRecord.totalAnswered,
+          uniqueAnswered: progressRecord.uniqueAnswered,
+          totalQuestions,
+          correctAnswers: progressRecord.correctAnswers,
+          averageScore: progressRecord.averageScore,
+          tagMastery: progressRecord.tagMastery,
+          strongTopics: progressRecord.strongTopics,
+          weakTopics: progressRecord.weakTopics,
+          lastUpdated: progressRecord.lastUpdated
+        }
+      });
+    }
+    
+    // 如果没有详细记录或记录已过期，计算基本的统计数据
     // 计算学习进度百分比（已答题数量 / 总题目数量）
-    // 使用distinct查询来确保每个题目只计算一次，重复回答同一题目只算作一次
     const answeredQuestions = await Submission.find({ 
-      user: req.user.id 
+      user: userId 
     }).distinct('question');
     
     const progressPercentage = totalQuestions > 0 
@@ -95,7 +124,10 @@ router.get('/student-dashboard', protect, authorize('student'), async (req, res)
     // 计算唯一题目的数量
     const uniqueAnswered = answeredQuestions.length;
     
-    // 返回统计数据
+    // 触发异步更新学习进度记录（不等待完成）
+    updateLearningProgressAsync(userId);
+    
+    // 返回基本统计数据
     res.json({
       success: true,
       stats: {
@@ -115,5 +147,288 @@ router.get('/student-dashboard', protect, authorize('student'), async (req, res)
     });
   }
 });
+
+// @route   POST /api/stats/update-progress
+// @desc    更新用户学习进度
+// @access  Private
+router.post('/update-progress', protect, async (req, res) => {
+  try {
+    const now = new Date();
+    const userId = req.user.id;
+    
+    // 并行请求所有统计数据以提高性能
+    const [submissions, totalQuestions, mistakeCount] = await Promise.all([
+      // 获取学生的所有提交记录
+      Submission.find({ user: userId })
+        .populate({
+          path: 'question', 
+          select: 'title category difficulty tags',
+          populate: { path: 'tags', select: 'name' }
+        }),
+      
+      // 获取系统中总题目数量（用于计算学习进度）
+      Question.countDocuments(),
+      
+      // 获取学生的错题数量（未标记为已解决的）
+      MistakeRecord.countDocuments({ 
+        user: userId,
+        resolved: false
+      })
+    ]);
+    
+    // 计算学习进度百分比（已答题数量 / 总题目数量）
+    // 使用distinct查询来确保每个题目只计算一次，重复回答同一题目只算作一次
+    const answeredQuestions = await Submission.find({ 
+      user: userId 
+    }).distinct('question');
+    
+    const progressPercentage = totalQuestions > 0 
+      ? Math.round((answeredQuestions.length / totalQuestions) * 100) 
+      : 0;
+    
+    // 计算总答题次数（包括重复作答）
+    const totalAnswered = submissions.length;
+    
+    // 计算唯一题目的数量
+    const uniqueAnswered = answeredQuestions.length;
+    
+    // 计算正确答题数
+    const correctAnswers = submissions.filter(sub => sub.isCorrect).length;
+    
+    // 计算平均分
+    const averageScore = totalAnswered > 0 
+      ? (correctAnswers / totalAnswered) * 100 
+      : 0;
+      
+    // 处理标签掌握情况
+    const tagMasteryMap = {};
+    
+    submissions.forEach(submission => {
+      if (submission.question && submission.question.tags) {
+        const isCorrect = submission.isCorrect;
+        const tags = submission.question.tags;
+        
+        // 确保标签是数组
+        const tagList = Array.isArray(tags) ? tags : [tags];
+        
+        tagList.forEach(tagItem => {
+          // 处理标签对象或字符串
+          const tagName = typeof tagItem === 'object' ? 
+            (tagItem.name || 'unknown') : tagItem;
+          
+          if (!tagMasteryMap[tagName]) {
+            tagMasteryMap[tagName] = { 
+              correct: 0, 
+              total: 0, 
+              exerciseCount: 0 
+            };
+          }
+          
+          tagMasteryMap[tagName].total += 1;
+          tagMasteryMap[tagName].exerciseCount += 1;
+          
+          if (isCorrect) {
+            tagMasteryMap[tagName].correct += 1;
+          }
+        });
+      }
+    });
+    
+    // 计算标签掌握百分比
+    const tagMastery = Object.entries(tagMasteryMap).map(([tag, data]) => ({
+      tag,
+      correct: data.correct,
+      total: data.total,
+      percentage: data.total > 0 ? Math.round((data.correct / data.total) * 100) : 0,
+      exerciseCount: data.exerciseCount
+    }));
+    
+    // 找出强项和弱项（至少有3个问题）
+    const strongTopics = tagMastery
+      .filter(item => item.total >= 3 && item.percentage >= 80)
+      .sort((a, b) => b.percentage - a.percentage)
+      .slice(0, 5)
+      .map(({ tag, percentage }) => ({ tag, percentage }));
+      
+    const weakTopics = tagMastery
+      .filter(item => item.total >= 3 && item.percentage < 60)
+      .sort((a, b) => a.percentage - b.percentage)
+      .slice(0, 5)
+      .map(({ tag, percentage }) => ({ tag, percentage }));
+    
+    // 尝试查找用户已有的学习进度记录
+    let progressRecord = await LearningProgress.findOne({ user: userId });
+    
+    // 如果不存在，则创建新记录
+    if (!progressRecord) {
+      progressRecord = new LearningProgress({
+        user: userId
+      });
+    }
+    
+    // 更新学习进度记录
+    progressRecord.progressPercentage = progressPercentage;
+    progressRecord.uniqueAnswered = uniqueAnswered;
+    progressRecord.totalAnswered = totalAnswered;
+    progressRecord.correctAnswers = correctAnswers;
+    progressRecord.averageScore = averageScore;
+    progressRecord.tagMastery = tagMastery;
+    progressRecord.strongTopics = strongTopics;
+    progressRecord.weakTopics = weakTopics;
+    progressRecord.lastUpdated = now;
+    
+    // 保存到数据库
+    await progressRecord.save();
+    
+    // 返回更新后的学习进度数据
+    res.json({
+      success: true,
+      message: '学习进度已更新',
+      progress: progressRecord
+    });
+  } catch (error) {
+    console.error('更新学习进度失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '服务器错误，更新学习进度失败'
+    });
+  }
+});
+
+// 异步更新学习进度记录
+async function updateLearningProgressAsync(userId) {
+  try {
+    // 创建异步任务，更新用户的学习进度记录
+    // 使用POST请求模拟
+    const User = require('../models/User');
+    const user = await User.findById(userId);
+    
+    if (!user) return;
+    
+    // 这是一个模拟的请求处理函数，直接调用更新逻辑
+    const now = new Date();
+    
+    // 并行请求所有统计数据以提高性能
+    const [submissions, totalQuestions] = await Promise.all([
+      // 获取学生的所有提交记录
+      Submission.find({ user: userId })
+        .populate({
+          path: 'question', 
+          select: 'title category difficulty tags',
+          populate: { path: 'tags', select: 'name' }
+        }),
+      
+      // 获取系统中总题目数量（用于计算学习进度）
+      Question.countDocuments()
+    ]);
+    
+    // 计算学习进度百分比（已答题数量 / 总题目数量）
+    const answeredQuestions = await Submission.find({ 
+      user: userId 
+    }).distinct('question');
+    
+    const progressPercentage = totalQuestions > 0 
+      ? Math.round((answeredQuestions.length / totalQuestions) * 100) 
+      : 0;
+    
+    // 计算总答题次数（包括重复作答）
+    const totalAnswered = submissions.length;
+    
+    // 计算唯一题目的数量
+    const uniqueAnswered = answeredQuestions.length;
+    
+    // 计算正确答题数
+    const correctAnswers = submissions.filter(sub => sub.isCorrect).length;
+    
+    // 计算平均分
+    const averageScore = totalAnswered > 0 
+      ? (correctAnswers / totalAnswered) * 100 
+      : 0;
+      
+    // 处理标签掌握情况
+    const tagMasteryMap = {};
+    
+    submissions.forEach(submission => {
+      if (submission.question && submission.question.tags) {
+        const isCorrect = submission.isCorrect;
+        const tags = submission.question.tags;
+        
+        // 确保标签是数组
+        const tagList = Array.isArray(tags) ? tags : [tags];
+        
+        tagList.forEach(tagItem => {
+          // 处理标签对象或字符串
+          const tagName = typeof tagItem === 'object' ? 
+            (tagItem.name || 'unknown') : tagItem;
+          
+          if (!tagMasteryMap[tagName]) {
+            tagMasteryMap[tagName] = { 
+              correct: 0, 
+              total: 0, 
+              exerciseCount: 0 
+            };
+          }
+          
+          tagMasteryMap[tagName].total += 1;
+          tagMasteryMap[tagName].exerciseCount += 1;
+          
+          if (isCorrect) {
+            tagMasteryMap[tagName].correct += 1;
+          }
+        });
+      }
+    });
+    
+    // 计算标签掌握百分比
+    const tagMastery = Object.entries(tagMasteryMap).map(([tag, data]) => ({
+      tag,
+      correct: data.correct,
+      total: data.total,
+      percentage: data.total > 0 ? Math.round((data.correct / data.total) * 100) : 0,
+      exerciseCount: data.exerciseCount
+    }));
+    
+    // 找出强项和弱项（至少有3个问题）
+    const strongTopics = tagMastery
+      .filter(item => item.total >= 3 && item.percentage >= 80)
+      .sort((a, b) => b.percentage - a.percentage)
+      .slice(0, 5)
+      .map(({ tag, percentage }) => ({ tag, percentage }));
+      
+    const weakTopics = tagMastery
+      .filter(item => item.total >= 3 && item.percentage < 60)
+      .sort((a, b) => a.percentage - b.percentage)
+      .slice(0, 5)
+      .map(({ tag, percentage }) => ({ tag, percentage }));
+    
+    // 尝试查找用户已有的学习进度记录
+    let progressRecord = await LearningProgress.findOne({ user: userId });
+    
+    // 如果不存在，则创建新记录
+    if (!progressRecord) {
+      progressRecord = new LearningProgress({
+        user: userId
+      });
+    }
+    
+    // 更新学习进度记录
+    progressRecord.progressPercentage = progressPercentage;
+    progressRecord.uniqueAnswered = uniqueAnswered;
+    progressRecord.totalAnswered = totalAnswered;
+    progressRecord.correctAnswers = correctAnswers;
+    progressRecord.averageScore = averageScore;
+    progressRecord.tagMastery = tagMastery;
+    progressRecord.strongTopics = strongTopics;
+    progressRecord.weakTopics = weakTopics;
+    progressRecord.lastUpdated = now;
+    
+    // 保存到数据库
+    await progressRecord.save();
+    
+    console.log(`已异步更新用户 ${userId} 的学习进度记录`);
+  } catch (error) {
+    console.error('异步更新学习进度失败:', error);
+  }
+}
 
 module.exports = router; 

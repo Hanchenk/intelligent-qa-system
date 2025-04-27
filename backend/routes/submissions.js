@@ -3,7 +3,7 @@ const router = express.Router();
 const Submission = require('../models/Submission');
 const Question = require('../models/Question');
 const MistakeRecord = require('../models/MistakeRecord');
-const { protect } = require('../middleware/auth');
+const { protect, authorize } = require('../middleware/auth');
 const axios = require('axios');  // 添加axios用于API调用
 
 // 调用大语言模型评估主观题答案
@@ -323,6 +323,77 @@ router.get('/question/:questionId', protect, async (req, res) => {
     });
   } catch (error) {
     console.error(error);
+    res.status(500).json({
+      success: false,
+      message: '服务器错误'
+    });
+  }
+});
+
+// @route   POST /api/submissions/create
+// @desc    创建新的提交记录
+// @access  Private
+router.post('/create', protect, async (req, res) => {
+  try {
+    const { questionId, userAnswer, isCorrect, score, timeSpent } = req.body;
+    
+    // 验证必要字段
+    if (!questionId) {
+      return res.status(400).json({
+        success: false,
+        message: '缺少必要的题目ID'
+      });
+    }
+    
+    // 检查问题是否存在
+    const question = await Question.findById(questionId);
+    if (!question) {
+      return res.status(404).json({
+        success: false,
+        message: '题目不存在'
+      });
+    }
+    
+    // 创建提交记录
+    const submission = new Submission({
+      user: req.user.id,
+      question: questionId,
+      userAnswer,
+      isCorrect: isCorrect || false,
+      score: score || 0,
+      timeSpent: timeSpent || 0
+    });
+    
+    // 保存到数据库
+    await submission.save();
+    
+    // 异步触发学习进度更新
+    try {
+      // 发送请求到学习进度更新接口
+      // 这里使用异步方式，不等待结果
+      axios.post(
+        `${process.env.API_URL || 'http://localhost:3001'}/api/stats/update-progress`,
+        {},
+        {
+          headers: {
+            'Authorization': req.headers.authorization
+          }
+        }
+      ).catch(err => {
+        console.error('触发学习进度更新失败:', err.message);
+      });
+    } catch (error) {
+      // 记录错误但不影响响应
+      console.error('触发学习进度更新失败:', error);
+    }
+    
+    res.status(201).json({
+      success: true,
+      message: '提交记录已保存',
+      data: submission
+    });
+  } catch (error) {
+    console.error('创建提交记录失败:', error);
     res.status(500).json({
       success: false,
       message: '服务器错误'

@@ -222,6 +222,45 @@ router.get('/:id/progress', protect, async (req, res) => {
   }
 });
 
+// @route   GET /api/users/:id/submissions
+// @desc    获取用户提交记录用于计算掌握情况
+// @access  Private
+router.get('/:id/submissions', protect, async (req, res) => {
+  try {
+    // 确保用户只能查看自己的提交记录，除非是教师
+    if (req.user._id.toString() !== req.params.id && req.user.role !== 'teacher') {
+      return res.status(403).json({
+        success: false,
+        message: '无权限查看其他用户的提交记录'
+      });
+    }
+
+    // 获取用户提交记录，包括题目标签信息
+    const submissions = await Submission.find({ user: req.params.id })
+      .populate({
+        path: 'question',
+        select: 'title category difficulty tags',
+        populate: {
+          path: 'tags',
+          select: 'name'
+        }
+      })
+      .sort({ submittedAt: -1 })
+      .limit(100); // 限制返回最近的100条记录，避免数据量过大
+
+    res.json({
+      success: true,
+      submissions
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: '服务器错误'
+    });
+  }
+});
+
 // 公开路由
 router.post('/', createUser);
 
