@@ -126,7 +126,7 @@ export default function StudentDashboard() {
                   </div>
                 </div>
 
-                {/* 近期考试卡片 */}
+                {/* 注释掉近期考试卡片 
                 <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
                   <div className="p-5">
                     <div className="flex items-center">
@@ -159,6 +159,7 @@ export default function StudentDashboard() {
                     </div>
                   </div>
                 </div>
+                */}
 
                 {/* 错题本卡片 */}
                 <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">

@@ -3,7 +3,7 @@ const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
 const Question = require('../models/Question');
 const Tag = require('../models/Tag');
-const Exam = require('../models/Exam');
+// const Exam = require('../models/Exam'); // 注释掉考试模型导入
 const Submission = require('../models/Submission');
 const MistakeRecord = require('../models/MistakeRecord');
 const User = require('../models/User');
@@ -15,12 +15,13 @@ const LearningProgress = require('../models/LearningProgress');
 router.get('/dashboard', protect, authorize('teacher'), async (req, res) => {
   try {
     // 并行请求所有统计数据以提高性能
-    const [questionCount, examCount, tagCount] = await Promise.all([
+    const [questionCount, tagCount] = await Promise.all([
       // 获取教师创建的题目数量
       Question.countDocuments({ creator: req.user.id }),
       
+      // 注释掉考试数量统计
       // 获取教师创建的考试数量（假设Exam模型中有creator字段）
-      Exam.countDocuments({ creator: req.user.id }),
+      // Exam.countDocuments({ creator: req.user.id }),
       
       // 获取系统中所有标签的数量（标签通常是全局共享的）
       Tag.countDocuments()
@@ -30,7 +31,7 @@ router.get('/dashboard', protect, authorize('teacher'), async (req, res) => {
       success: true,
       stats: {
         questionCount,
-        examCount,
+        // examCount, // 注释掉考试数量
         tagCount
       }
     });
@@ -52,15 +53,17 @@ router.get('/student-dashboard', protect, authorize('student'), async (req, res)
     const userId = req.user.id;
     
     // 并行请求所有统计数据以提高性能
-    const [submissions, upcomingExams, totalQuestions, mistakeCount, progressRecord] = await Promise.all([
+    // 注释掉考试相关的查询
+    const [submissions, totalQuestions, mistakeCount, progressRecord] = await Promise.all([
       // 获取学生的所有提交记录（用于计算基本统计）
       Submission.find({ user: userId }),
       
+      // 注释掉考试相关查询
       // 获取未来的考试（考试开始时间大于当前时间）
-      Exam.find({ 
-        startTime: { $gt: now },
-        isActive: true 
-      }),
+      // Exam.find({ 
+      //   startTime: { $gt: now },
+      //   isActive: true 
+      // }),
       
       // 获取系统中总题目数量（用于计算学习进度）
       Question.countDocuments(),
@@ -84,7 +87,8 @@ router.get('/student-dashboard', protect, authorize('student'), async (req, res)
         success: true,
         stats: {
           progressPercentage: progressRecord.progressPercentage,
-          upcomingExamCount: upcomingExams.length,
+          // upcomingExamCount: upcomingExams.length, // 注释掉考试相关统计
+          upcomingExamCount: 0, // 将考试数量设为0
           mistakeCount: mistakeCount,
           totalAnswered: progressRecord.totalAnswered,
           uniqueAnswered: progressRecord.uniqueAnswered,
@@ -132,7 +136,8 @@ router.get('/student-dashboard', protect, authorize('student'), async (req, res)
       success: true,
       stats: {
         progressPercentage, // 整体学习进度百分比
-        upcomingExamCount: upcomingExams.length,
+        // upcomingExamCount: upcomingExams.length, // 注释掉考试相关统计
+        upcomingExamCount: 0, // 将考试数量设为0
         mistakeCount: finalMistakeCount,
         totalAnswered, // 总答题次数（包括重复）
         uniqueAnswered, // 不重复的题目数量

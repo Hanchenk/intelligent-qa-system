@@ -44,9 +44,11 @@ const TeacherNavBar = () => {
               <Link href="/dashboard/teacher/tags" className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700">
                 标签管理
               </Link>
+              {/* 注释掉考试管理功能
               <Link href="/dashboard/teacher/exams" className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700">
                 考试管理
               </Link>
+              */}
               <Link href="/discussions" className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700">
                 讨论区
               </Link>
@@ -83,9 +85,11 @@ const TeacherNavBar = () => {
           <Link href="/dashboard/teacher/tags" className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700">
             标签管理
           </Link>
+          {/* 注释掉考试管理功能
           <Link href="/dashboard/teacher/exams" className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700">
             考试管理
           </Link>
+          */}
           <Link href="/discussions" className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700">
             讨论区
           </Link>

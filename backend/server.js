@@ -29,7 +29,8 @@ app.use('/api/tags', require('./routes/tags'));
 app.use('/api/stats', require('./routes/stats'));
 app.use('/api/mistakes', require('./routes/mistakes'));
 app.use('/api/bookmarks', require('./routes/bookmarks'));
-app.use('/api/exams', require('./routes/exams'));
+// 注释掉考试相关API
+// app.use('/api/exams', require('./routes/exams'));
 
 // 基础路由
 app.get('/', (req, res) => {
