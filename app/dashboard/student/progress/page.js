@@ -67,6 +67,7 @@ import { EmojiEvents, CheckCircle, WarningAmber, ErrorOutline } from '@mui/icons
 import HistoryIcon from '@mui/icons-material/History';
 import FitnessCenterIcon from '@mui/icons-material/FitnessCenter';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 
 // 动态导入 recharts 组件，并禁用 SSR
 const LineChart = dynamic(() => import('recharts').then(mod => mod.LineChart), { ssr: false });
@@ -1170,8 +1171,13 @@ export default function StudentProgressPage() {
                       </Box>
                     </CardContent>
                     <CardActions>
-                      <Button size="small" color="primary">
-                        开始练习
+                      <Button 
+                        size="small" 
+                        color="primary"
+                        onClick={() => handleShowAnswer(question)}
+                        startIcon={<VisibilityIcon />}
+                      >
+                        显示答案
                       </Button>
                     </CardActions>
                   </Card>
@@ -1299,6 +1305,70 @@ export default function StudentProgressPage() {
       name: `练习 ${index + 1}`,
       score: record.results?.percentage || record.score?.percentage || 0, // 尝试兼容不同记录结构
     }));
+  };
+
+  // 处理显示答案
+  const handleShowAnswer = (question) => {
+    // 准备答案内容
+    let answerTitle = "标准答案";
+    let answerContent = "";
+    
+    // 根据题目类型处理不同的答案格式
+    if (question.type === '单选题' || question.type === '多选题') {
+      // 选择题的答案已在界面中用绿色高亮显示，这里再汇总一下
+      const correctOptions = question.options
+        .filter(opt => opt.isCorrect)
+        .map(opt => opt.text)
+        .join(', ');
+      
+      answerContent = correctOptions || '暂无标准答案';
+    } else if (question.type === '判断题') {
+      answerContent = question.answer === true || question.answer === 'true' ? '正确' : '错误';
+    } else {
+      // 填空题、简答题、编程题等
+      answerContent = question.answer || question.correctAnswer || question.explanation || '暂无标准答案';
+    }
+    
+    // 使用更友好的对话框显示答案，而不是alert
+    const dialog = document.createElement('dialog');
+    dialog.style.cssText = 'padding: 16px; border-radius: 8px; border: 1px solid #ccc; min-width: 300px; max-width: 80%; background-color: white; box-shadow: 0 4px 8px rgba(0,0,0,0.1);';
+    
+    dialog.innerHTML = `
+      <div style="display: flex; flex-direction: column;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <h3 style="margin: 0; color: #1976d2;">${question.title}</h3>
+          <button style="border: none; background: none; cursor: pointer; font-size: 18px;" onclick="this.closest('dialog').close()">×</button>
+        </div>
+        <div style="margin-bottom: 8px;">
+          <div style="font-weight: 500; margin-bottom: 4px;">${answerTitle}:</div>
+          <div style="padding: 8px; background-color: #f5f5f5; border-radius: 4px; white-space: pre-wrap;">${answerContent}</div>
+        </div>
+        ${question.explanation ? `
+          <div style="margin-top: 8px;">
+            <div style="font-weight: 500; margin-bottom: 4px;">解析:</div>
+            <div style="padding: 8px; background-color: #f5f5f5; border-radius: 4px; white-space: pre-wrap;">${question.explanation}</div>
+          </div>
+        ` : ''}
+      </div>
+      <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
+        <button style="padding: 6px 16px; background-color: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer;" onclick="this.closest('dialog').close()">关闭</button>
+      </div>
+    `;
+    
+    document.body.appendChild(dialog);
+    dialog.showModal();
+    
+    // 添加点击背景关闭对话框的功能
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog) {
+        dialog.close();
+      }
+    });
+    
+    // 添加清理函数，关闭后从DOM中移除对话框
+    dialog.addEventListener('close', () => {
+      document.body.removeChild(dialog);
+    });
   };
 
   // 生成个人学习报告 (基于错题分析)
