@@ -26,7 +26,10 @@ app.use('/api/submissions', require('./routes/submissions'));
 app.use('/api/discussions', require('./routes/discussions'));
 app.use('/api/llm', require('./routes/llm'));
 app.use('/api/tags', require('./routes/tags'));
-app.use('/api/stats', require('./routes/stats'));
+// 导入stats路由对象
+const { router: statsRouter } = require('./routes/stats');
+// 使用路由
+app.use('/api/stats', statsRouter);
 app.use('/api/mistakes', require('./routes/mistakes'));
 app.use('/api/bookmarks', require('./routes/bookmarks'));
 // 注释掉考试相关API

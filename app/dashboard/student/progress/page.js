@@ -86,13 +86,14 @@ const Bar = dynamic(() => import('recharts').then(mod => mod.Bar), { ssr: false 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 const ensureCorrectApiUrl = (url, endpoint) => {
   let baseUrl = url.replace(/\/+$/, '');
-  if (baseUrl.endsWith('/api') && !endpoint.startsWith('/api')) {
-    return `${baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+  
+  // 处理可能的重复/api路径问题
+  let cleanEndpoint = endpoint;
+  if (baseUrl.endsWith('/api') && endpoint.startsWith('/api')) {
+    cleanEndpoint = endpoint.replace(/^\/api/, '');
   }
-  if (!baseUrl.endsWith('/api') && !endpoint.startsWith('/api')) {
-    return `${baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
-  }
-  return `${baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+  
+  return `${baseUrl}${cleanEndpoint.startsWith('/') ? cleanEndpoint : '/' + cleanEndpoint}`;
 };
 
 export default function StudentProgressPage() {
@@ -230,6 +231,71 @@ export default function StudentProgressPage() {
       // progressPercentage 是基于用户在系统题库中已回答的题目数量计算的
       const stats = await getUserStatistics(user.id);
       
+      // 确保有分类统计数据
+      if (!stats.exercisesByCategory || Object.keys(stats.exercisesByCategory).length === 0) {
+        stats.exercisesByCategory = {};
+        
+        // 如果有records数据，从中提取分类信息
+        if (stats.records && stats.records.length > 0) {
+          stats.records.forEach(record => {
+            const category = record.category || '未分类';
+            if (!stats.exercisesByCategory[category]) {
+              stats.exercisesByCategory[category] = {
+                count: 0,
+                totalScore: 0,
+                averageScore: 0
+              };
+            }
+            
+            stats.exercisesByCategory[category].count += 1;
+            stats.exercisesByCategory[category].totalScore += record.score?.percentage || 0;
+          });
+          
+          // 计算平均分
+          Object.keys(stats.exercisesByCategory).forEach(category => {
+            const data = stats.exercisesByCategory[category];
+            data.averageScore = data.count > 0 ? Math.round(data.totalScore / data.count) : 0;
+          });
+        }
+      }
+      
+      // 确保有答题记录数据
+      if (!stats.records || !Array.isArray(stats.records) || stats.records.length === 0) {
+        // 尝试从提交记录中提取数据
+        try {
+          const token = localStorage.getItem('token');
+          if (token) {
+            const response = await fetch(`${API_URL}/api/users/${user.id}/submissions`, {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            
+            if (response.ok) {
+              const result = await response.json();
+              if (result.success && result.submissions && result.submissions.length > 0) {
+                // 转换提交记录为答题记录格式
+                stats.records = result.submissions.map(submission => ({
+                  id: submission._id,
+                  exerciseId: submission.question?._id || 'unknown',
+                  exerciseTitle: submission.question?.title || '未知题目',
+                  date: submission.submittedAt,
+                  score: { 
+                    percentage: submission.isCorrect ? 100 : 0,
+                    totalScore: submission.isCorrect ? 1 : 0,
+                    possibleScore: 1
+                  },
+                  timeSpent: submission.timeSpent || 0,
+                  tags: submission.question?.tags?.map(tag => typeof tag === 'string' ? tag : tag.name) || []
+                }));
+              }
+            }
+          }
+        } catch (error) {
+          console.error('获取提交记录失败:', error);
+        }
+      }
+      
       // 分析标签掌握情况
       const tagMastery = {};
       
@@ -237,80 +303,43 @@ export default function StudentProgressPage() {
         // 遍历所有记录
         stats.records.forEach(record => {
           // 处理问题标签
-          record.questions.forEach((question, index) => {
-            const isCorrect = record.results.questionResults?.[index]?.isCorrect || false;
-            
-            // 为每个标签更新掌握情况
-            if (question.tags && question.tags.length > 0) {
-              question.tags.forEach(tag => {
-                if (!tagMastery[tag]) {
-                  tagMastery[tag] = { correct: 0, total: 0 };
-                }
-                
-                tagMastery[tag].total += 1;
-                if (isCorrect) {
-                  tagMastery[tag].correct += 1;
-                }
-              });
-            }
-          });
-          
-          // 处理练习整体标签
           if (record.tags && record.tags.length > 0) {
             record.tags.forEach(tag => {
               if (!tagMastery[tag]) {
                 tagMastery[tag] = { correct: 0, total: 0 };
               }
               
-              // 计入整体统计
-              if (!tagMastery[tag].exerciseCount) {
-                tagMastery[tag].exerciseCount = 0;
+              tagMastery[tag].total += 1;
+              if (record.score && record.score.percentage >= 60) {
+                tagMastery[tag].correct += 1;
               }
-              tagMastery[tag].exerciseCount += 1;
             });
           }
         });
       }
       
-      // 计算标签掌握百分比
-      const tagMasteryWithPercentage = Object.entries(tagMastery).map(([tag, data]) => ({
-        tag,
-        correct: data.correct,
-        total: data.total,
-        percentage: data.total > 0 ? Math.round((data.correct / data.total) * 100) : 0,
-        exerciseCount: data.exerciseCount || 0
-      }));
-      
-      // 找出强项和弱项（至少有3个问题）
-      const strongTopics = tagMasteryWithPercentage
-        .filter(item => item.total >= 3 && item.percentage >= 80)
-        .sort((a, b) => b.percentage - a.percentage);
-        
-      const weakTopics = tagMasteryWithPercentage
-        .filter(item => item.total >= 3 && item.percentage < 60)
-        .sort((a, b) => a.percentage - b.percentage);
-      
-      // 更新统计信息
-      setUserStats({
-        ...stats,
-        tagMastery: tagMasteryWithPercentage,
-        strongTopics,
-        weakTopics
-      });
-
-      // 获取最近练习记录用于图表
-      const records = getExerciseRecords(user.id);
-      setRecentRecords(records.slice(0, 10).reverse()); // 取最近10条并反转，使图表从左到右为时间顺序
-      
-      // 获取统计后触发推荐
-      if (stats) {
-        fetchRecommendations(stats);
+      // 如果不存在标签掌握情况，使用计算结果
+      if (!stats.tagMastery || stats.tagMastery.length === 0) {
+        stats.tagMastery = Object.entries(tagMastery).map(([tag, data]) => ({
+          tag,
+          correct: data.correct,
+          total: data.total,
+          percentage: data.total > 0 ? Math.round((data.correct / data.total) * 100) : 0,
+          exerciseCount: data.total
+        }));
       }
-
+      
+      setUserStats(stats);
+      setStatsLoading(false);
+      
+      // 设置最近答题记录用于图表
+      if (stats.records && stats.records.length > 0) {
+        setRecentRecords(stats.records.slice(0, 10));
+      }
+      
     } catch (error) {
-      console.error('加载统计信息失败:', error);
-      setStatsError(error.message || '加载统计信息失败');
-    } finally {
+      console.error('获取统计数据失败:', error);
+      setStatsError(error.message || '获取数据失败');
       setStatsLoading(false);
     }
   };
@@ -526,6 +555,25 @@ export default function StudentProgressPage() {
       );
     }
     
+    // 如果是新用户没有提交记录
+    if (userStats.isNewUser) {
+      return (
+        <Alert severity="info" className="mb-4">
+          欢迎新用户！您还没有完成任何练习，请先尝试回答一些题目，系统将自动记录您的学习进度。
+          <Box mt={2}>
+            <Button 
+              variant="contained" 
+              color="primary" 
+              onClick={() => router.push('/dashboard/student/exercises')}
+              startIcon={<FitnessCenterIcon />}
+            >
+              开始练习
+            </Button>
+          </Box>
+        </Alert>
+      );
+    }
+    
     return (
       <>
         <Grid container spacing={3}>
@@ -563,20 +611,32 @@ export default function StudentProgressPage() {
                 <List dense disablePadding>
                   <ListItem>
                     <ListItemText 
-                      primary="完成练习" 
+                      primary="已完成练习" 
                       secondary={`${userStats.totalExercises} 个`} 
                     />
                   </ListItem>
                   <ListItem>
                     <ListItemText 
-                      primary="答题总数" 
-                      secondary={`${userStats.totalQuestions} 题`} 
+                      primary="已答不同题目" 
+                      secondary={`${userStats.uniqueAnswered || 0} 题`} 
+                    />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemText 
+                      primary="答题次数" 
+                      secondary={`${userStats.totalAnswered || 0} 次`} 
+                    />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemText 
+                      primary="系统题目总数" 
+                      secondary={`${userStats.totalQuestions || 0} 题`} 
                     />
                   </ListItem>
                   <ListItem>
                     <ListItemText 
                       primary="正确率" 
-                      secondary={`${userStats.totalQuestions ? (userStats.correctQuestions / userStats.totalQuestions * 100).toFixed(1) : '0.0'}%`} 
+                      secondary={`${userStats.totalAnswered ? (userStats.correctAnswers / userStats.totalAnswered * 100).toFixed(1) : '0.0'}%`} 
                     />
                   </ListItem>
                 </List>
@@ -765,6 +825,29 @@ export default function StudentProgressPage() {
       );
     }
     
+    // 如果是新用户没有提交记录
+    if (userStats.isNewUser) {
+      return (
+        <Alert severity="info" className="mb-4">
+          欢迎新用户！您还没有完成任何练习，无法生成详细统计数据。请先尝试回答一些题目，系统将自动记录您的学习进度。
+          <Box mt={2}>
+            <Button 
+              variant="contained" 
+              color="primary" 
+              onClick={() => router.push('/dashboard/student/exercises')}
+              startIcon={<FitnessCenterIcon />}
+            >
+              开始练习
+            </Button>
+          </Box>
+        </Alert>
+      );
+    }
+    
+    // 确保必要的数据结构存在
+    if (!userStats.exercisesByCategory) userStats.exercisesByCategory = {};
+    if (!userStats.records) userStats.records = [];
+    
     // 显示掌握程度的辅助函数
     const getMasteryLevel = (score) => {
       if (score >= 80) return { text: '优秀', color: theme.palette.success.main };
@@ -834,7 +917,7 @@ export default function StudentProgressPage() {
                 </TableContainer>
               ) : (
                 <Typography color="text.secondary" align="center" className="py-4">
-                  暂无分类数据
+                  暂无分类数据，请先完成一些练习
                 </Typography>
               )}
             </CardContent>
@@ -850,7 +933,7 @@ export default function StudentProgressPage() {
                 答题记录
               </Typography>
               
-              {userStats && userStats.records && userStats.records.length > 0 ? (
+              {userStats.records && userStats.records.length > 0 ? (
                 <>
                   <TableContainer>
                     <Table>
@@ -869,7 +952,7 @@ export default function StudentProgressPage() {
                           <TableRow key={record.id}>
                             <TableCell>
                               <Typography variant="body2">
-                                {record.exerciseTitle}
+                                {record.exerciseTitle || '未知练习'}
                               </Typography>
                             </TableCell>
                             <TableCell align="center">
@@ -883,15 +966,15 @@ export default function StudentProgressPage() {
                             <TableCell align="center">
                               <Chip 
                                 size="small"
-                                label={`${record.score.percentage}%`}
+                                label={`${record.score?.percentage || 0}%`}
                                 color={
-                                  record.score.percentage >= 80 ? 'success' :
-                                  record.score.percentage >= 60 ? 'warning' : 'error'
+                                  (record.score?.percentage || 0) >= 80 ? 'success' :
+                                  (record.score?.percentage || 0) >= 60 ? 'warning' : 'error'
                                 }
                               />
                             </TableCell>
                             <TableCell align="center">
-                              {formatTime(record.timeSpent)}
+                              {formatTime(record.timeSpent || 0)}
                             </TableCell>
                             <TableCell align="center">
                               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, justifyContent: 'center' }}>
@@ -923,7 +1006,7 @@ export default function StudentProgressPage() {
                 </>
               ) : (
                 <Typography color="text.secondary" align="center" className="py-4">
-                  暂无答题记录
+                  暂无答题记录，请先完成一些练习
                 </Typography>
               )}
             </CardContent>
@@ -1030,10 +1113,10 @@ export default function StudentProgressPage() {
             <Grid item xs={12} sm={6} md={3}>
               <Box sx={{ textAlign: 'center' }}>
                 <Typography variant="h4" color="primary">
-                  {userStats?.totalQuestions || 0}
+                  {userStats?.uniqueAnswered || 0}
                 </Typography>
                 <Typography variant="body2" color="textSecondary">
-                  已回答问题
+                  已答不同题目
                 </Typography>
               </Box>
             </Grid>
@@ -1056,10 +1139,10 @@ export default function StudentProgressPage() {
             <Grid item xs={12} sm={6} md={3}>
               <Box sx={{ textAlign: 'center' }}>
                 <Typography variant="h4" color="primary">
-                  {userStats?.tagMastery?.length || 0}
+                  {userStats?.totalQuestions || 0}
                 </Typography>
                 <Typography variant="body2" color="textSecondary">
-                  涉及知识点
+                  系统题目总数
                 </Typography>
               </Box>
             </Grid>
@@ -1087,10 +1170,10 @@ export default function StudentProgressPage() {
                 }} 
               />
               <Typography variant="caption" color="textSecondary" sx={{ mt: 0.5, display: 'block' }}>
-                已回答不重复题目：{userStats.uniqueAnswered || 0} / {userStats.totalQuestions || 0}
+                已答不同题目：{userStats.uniqueAnswered || 0} / 系统题目总数：{userStats.totalQuestions || 0}
               </Typography>
               <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
-                注：重复回答同一题目在整体学习进度中只计算一次
+                进度百分比 = 已答不同题目数 ÷ 系统题目总数 × 100%
               </Typography>
             </Box>
           )}

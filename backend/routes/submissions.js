@@ -336,6 +336,7 @@ router.get('/question/:questionId', protect, async (req, res) => {
 router.post('/create', protect, async (req, res) => {
   try {
     const { questionId, userAnswer, isCorrect, score, timeSpent } = req.body;
+    const userId = req.user.id;
     
     // 验证必要字段
     if (!questionId) {
@@ -356,7 +357,7 @@ router.post('/create', protect, async (req, res) => {
     
     // 创建提交记录
     const submission = new Submission({
-      user: req.user.id,
+      user: userId,
       question: questionId,
       userAnswer,
       isCorrect: isCorrect || false,
@@ -367,25 +368,19 @@ router.post('/create', protect, async (req, res) => {
     // 保存到数据库
     await submission.save();
     
-    // 异步触发学习进度更新
-    try {
-      // 发送请求到学习进度更新接口
-      // 这里使用异步方式，不等待结果
-      axios.post(
-        `${process.env.API_URL || 'http://localhost:3001'}/api/stats/update-progress`,
-        {},
-        {
-          headers: {
-            'Authorization': req.headers.authorization
-          }
-        }
-      ).catch(err => {
-        console.error('触发学习进度更新失败:', err.message);
-      });
-    } catch (error) {
-      // 记录错误但不影响响应
-      console.error('触发学习进度更新失败:', error);
-    }
+    // 导入updateLearningProgressAsync函数
+    const { updateLearningProgressAsync } = require('./stats');
+
+    // 分离主流程和异步进度更新
+    // 使用setTimeout来确保即使更新进度失败，也不会影响提交记录的响应
+    setTimeout(() => {
+      try {
+        updateLearningProgressAsync(userId);
+        console.log(`提交记录创建成功，为用户 ${userId} 异步更新学习进度`);
+      } catch (error) {
+        console.error('触发学习进度更新失败:', error);
+      }
+    }, 0);
     
     res.status(201).json({
       success: true,

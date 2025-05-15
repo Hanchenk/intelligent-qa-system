@@ -11,6 +11,7 @@ import axios from 'axios';
 import { CircularProgress } from '@mui/material';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+console.log('使用API基础URL:', API_URL);
 
 export default function StudentDashboard() {
   const router = useRouter();
@@ -26,38 +27,66 @@ export default function StudentDashboard() {
   
   // 获取统计数据
   useEffect(() => {
+    // 检查用户是否已登录
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+
+    setLoading(true);
+
+    // 获取统计数据
     const fetchStats = async () => {
-      if (!user) return;
-      
-      const token = localStorage.getItem('token');
-      if (!token) return;
-      
-      setLoading(true);
-      setError(null);
-      
       try {
-        const response = await axios.get(`${API_URL}/stats/student-dashboard`, {
-          headers: { Authorization: `Bearer ${token}` }
+        const token = localStorage.getItem('token');
+        if (!token) {
+          throw new Error('未找到认证令牌');
+        }
+
+        // 确保API URL正确构建
+        let apiEndpoint = `${API_URL}/api/stats/student-dashboard`;
+        // 处理可能的重复/api路径问题
+        if (API_URL.endsWith('/api') && apiEndpoint.includes('/api/api/')) {
+          apiEndpoint = apiEndpoint.replace('/api/api/', '/api/');
+        }
+        console.log('请求统计数据API:', apiEndpoint);
+
+        const response = await axios.get(apiEndpoint, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
         });
-        
-        if (response.data.success) {
+
+        if (response.data && response.data.success) {
           setStats({
             progressPercentage: response.data.stats.progressPercentage || 0,
-            upcomingExamCount: response.data.stats.upcomingExamCount || 0,
-            mistakeCount: response.data.stats.mistakeCount || 0
+            mistakeCount: response.data.stats.mistakeCount || 0,
+            totalAnswered: response.data.stats.totalAnswered || 0,
+            uniqueAnswered: response.data.stats.uniqueAnswered || 0,
+            totalQuestions: response.data.stats.totalQuestions || 0,
+            isNewUser: response.data.stats.isNewUser || false
           });
         } else {
-          throw new Error(response.data.message || '获取统计数据失败');
+          // 如果API失败，使用默认值
+          setStats({
+            progressPercentage: 0,
+            mistakeCount: 0,
+            totalAnswered: 0,
+            uniqueAnswered: 0,
+            totalQuestions: 0,
+            isNewUser: true
+          });
         }
-      } catch (err) {
-        console.error('获取统计数据失败:', err);
-        setError('获取统计数据失败，请刷新页面重试');
-        
-        // 设置备用统计数据
+      } catch (error) {
+        console.error('获取统计数据失败:', error);
+        // 错误时使用默认值
         setStats({
           progressPercentage: 0,
-          upcomingExamCount: 0,
-          mistakeCount: 0
+          mistakeCount: 0,
+          totalAnswered: 0,
+          uniqueAnswered: 0,
+          totalQuestions: 0,
+          isNewUser: true
         });
       } finally {
         setLoading(false);
@@ -109,10 +138,17 @@ export default function StudentDashboard() {
                           <div className="text-lg font-medium text-gray-900 dark:text-white">
                             {loading ? (
                               <CircularProgress size={20} />
+                            ) : stats.isNewUser ? (
+                              <span className="text-blue-500">新用户</span>
                             ) : (
                               `${stats.progressPercentage}%`
                             )}
                           </div>
+                          {!loading && !stats.isNewUser && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                              已答题目: {stats.uniqueAnswered || 0} / {stats.totalQuestions || 0}
+                            </div>
+                          )}
                         </dd>
                       </div>
                     </div>

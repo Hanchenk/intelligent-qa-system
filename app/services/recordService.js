@@ -4,7 +4,22 @@
  */
 
 // API基础URL
-const apiBaseUrl = 'http://localhost:3001';
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+// 确保API URL正确构建
+const buildApiUrl = (endpoint) => {
+  console.log('API基础URL:', apiBaseUrl);
+  
+  // 处理可能的重复/api路径问题
+  let cleanEndpoint = endpoint;
+  if (apiBaseUrl.endsWith('/api') && endpoint.startsWith('/api')) {
+    cleanEndpoint = endpoint.replace(/^\/api/, '');
+  }
+  
+  const url = `${apiBaseUrl}${cleanEndpoint.startsWith('/') ? cleanEndpoint : '/' + cleanEndpoint}`;
+  console.log('完整API请求地址:', url);
+  return url;
+};
 
 // 用于生成唯一ID
 const generateId = () => {
@@ -26,7 +41,7 @@ export const getMistakesFromDB = async (userId) => {
       return [];
     }
     
-    const response = await fetch(`${apiBaseUrl}/api/mistakes`, {
+    const response = await fetch(buildApiUrl(`/api/mistakes`), {
       headers: {
         'Authorization': `Bearer ${token}`
       }
@@ -80,7 +95,7 @@ export const updateMistakeStatus = async (mistakeId, isResolved) => {
       return false;
     }
     
-    const response = await fetch(`${apiBaseUrl}/api/mistakes/${mistakeId}`, {
+    const response = await fetch(buildApiUrl(`/api/mistakes/${mistakeId}`), {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -115,7 +130,7 @@ export const deleteMistake = async (mistakeId) => {
       return false;
     }
     
-    const response = await fetch(`${apiBaseUrl}/api/mistakes/${mistakeId}`, {
+    const response = await fetch(buildApiUrl(`/api/mistakes/${mistakeId}`), {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`
@@ -151,7 +166,7 @@ export const addToMistake = async (questionId, userAnswer, notes = '') => {
     console.log(`正在添加错题，题目ID: ${questionId}`);
     console.log('用户答案:', userAnswer);
     
-    const response = await fetch(`${apiBaseUrl}/api/mistakes/add/${questionId}`, {
+    const response = await fetch(buildApiUrl(`/api/mistakes/add/${questionId}`), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -239,7 +254,7 @@ export const saveExerciseRecord = async (record) => {
           };
           
           // 发送到服务器
-          const response = await fetch(`${apiBaseUrl}/api/submissions/create`, {
+          const response = await fetch(buildApiUrl('/api/submissions/create'), {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -471,10 +486,23 @@ export const getMistakes = (userId) => {
  */
 export const getUserStatistics = async (userId) => {
   try {
-    if (!userId) return null;
+    // 检查localStorage中是否有缓存的统计数据（确保缓存数据在24小时内）
+    const cachedStatsJson = localStorage.getItem(`qa_stats_${userId}`);
+    if (cachedStatsJson) {
+      const cachedStats = JSON.parse(cachedStatsJson);
+      // 检查是否在24小时内更新过
+      const lastUpdated = new Date(cachedStats.lastUpdated);
+      const now = new Date();
+      const hoursSinceUpdate = (now - lastUpdated) / (1000 * 60 * 60);
+      
+      // 如果缓存数据在24小时内且有效，就使用缓存数据
+      if (hoursSinceUpdate < 24 && cachedStats.records && cachedStats.exercisesByCategory) {
+        return cachedStats;
+      }
+    }
     
-    // 初始化统计数据对象
-    let stats = {
+    // 初始化统计数据结构
+    const stats = {
       userId,
       totalExercises: 0,
       totalQuestions: 0,
@@ -482,6 +510,7 @@ export const getUserStatistics = async (userId) => {
       totalScore: 0,
       averageScore: 0,
       exercisesByCategory: {},
+      records: [],
       recentScores: [],
       strongTopics: [],
       weakTopics: [],
@@ -490,7 +519,9 @@ export const getUserStatistics = async (userId) => {
       mistakeCount: 0,
       totalAnswered: 0,
       uniqueAnswered: 0,
-      lastUpdated: new Date().toISOString()
+      tagMastery: [],
+      lastUpdated: new Date().toISOString(),
+      isNewUser: true // 默认假设是新用户
     };
     
     // 从后端API获取学习进度数据（主要数据来源）
@@ -498,7 +529,7 @@ export const getUserStatistics = async (userId) => {
       const token = localStorage.getItem('token');
       if (token) {
         // 获取学习进度数据
-        const progressResponse = await fetch(`${apiBaseUrl}/api/stats/student-dashboard`, {
+        const progressResponse = await fetch(buildApiUrl('/api/stats/student-dashboard'), {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -508,17 +539,31 @@ export const getUserStatistics = async (userId) => {
           const progressResult = await progressResponse.json();
           if (progressResult.success) {
             // 更新核心学习进度数据
-            stats.progressPercentage = progressResult.stats.progressPercentage;
-            stats.upcomingExamCount = progressResult.stats.upcomingExamCount;
-            stats.mistakeCount = progressResult.stats.mistakeCount;
+            stats.progressPercentage = progressResult.stats.progressPercentage || 0;
+            stats.upcomingExamCount = progressResult.stats.upcomingExamCount || 0;
+            stats.mistakeCount = progressResult.stats.mistakeCount || 0;
             stats.totalAnswered = progressResult.stats.totalAnswered || 0;
             stats.uniqueAnswered = progressResult.stats.uniqueAnswered || 0;
             stats.totalQuestions = progressResult.stats.totalQuestions || 0;
+            stats.correctAnswers = progressResult.stats.correctAnswers || 0;
+            stats.averageScore = progressResult.stats.averageScore || 0;
+            stats.tagMastery = progressResult.stats.tagMastery || [];
+            stats.strongTopics = progressResult.stats.strongTopics || [];
+            stats.weakTopics = progressResult.stats.weakTopics || [];
+            stats.lastUpdated = progressResult.stats.lastUpdated || new Date().toISOString();
+            stats.isNewUser = progressResult.stats.isNewUser !== undefined ? progressResult.stats.isNewUser : true;
+            
+            // 如果是新用户，就不再获取其他数据
+            if (stats.isNewUser) {
+              console.log('检测到新用户，使用初始化数据');
+              localStorage.setItem(`qa_stats_${userId}`, JSON.stringify(stats));
+              return stats;
+            }
           }
         }
         
-        // 获取用户提交记录的详细数据（用于计算标签掌握情况）
-        const submissionsResponse = await fetch(`${apiBaseUrl}/api/users/${userId}/submissions`, {
+        // 如果不是新用户，继续获取用户提交记录的详细数据
+        const submissionsResponse = await fetch(buildApiUrl(`/api/users/${userId}/submissions`), {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -526,7 +571,7 @@ export const getUserStatistics = async (userId) => {
         
         if (submissionsResponse.ok) {
           const submissionsResult = await submissionsResponse.json();
-          if (submissionsResult.success && submissionsResult.submissions.length > 0) {
+          if (submissionsResult.success && submissionsResult.submissions && submissionsResult.submissions.length > 0) {
             // 处理提交记录，计算标签掌握情况
             const submissions = submissionsResult.submissions;
             
@@ -534,41 +579,86 @@ export const getUserStatistics = async (userId) => {
             stats.totalExercises = submissions.length;
             stats.correctQuestions = submissions.filter(sub => sub.isCorrect).length;
             
+            // 构建答题记录格式
+            stats.records = submissions.map(submission => ({
+              id: submission._id,
+              exerciseId: submission.question?._id || 'unknown',
+              exerciseTitle: submission.question?.title || '未知题目',
+              category: submission.question?.category || '未分类',
+              date: submission.submittedAt,
+              score: { 
+                percentage: submission.isCorrect ? 100 : 0,
+                totalScore: submission.isCorrect ? 1 : 0,
+                possibleScore: 1
+              },
+              timeSpent: submission.timeSpent || 0,
+              tags: submission.question?.tags?.map(tag => typeof tag === 'string' ? tag : tag.name) || []
+            }));
+            
             // 处理标签掌握情况
             const tagMastery = {};
+            const categoryStats = {};
             
             submissions.forEach(submission => {
-              if (submission.question && submission.question.tags) {
+              if (submission.question) {
                 const isCorrect = submission.isCorrect;
                 
+                // 处理分类统计
+                if (submission.question.category) {
+                  const category = submission.question.category;
+                  if (!categoryStats[category]) {
+                    categoryStats[category] = {
+                      count: 0,
+                      totalScore: 0,
+                      averageScore: 0
+                    };
+                  }
+                  categoryStats[category].count += 1;
+                  categoryStats[category].totalScore += isCorrect ? 100 : 0;
+                }
+                
                 // 遍历题目标签
-                submission.question.tags.forEach(tag => {
-                  // 确保标签是字符串
-                  const tagName = typeof tag === 'object' ? tag.name : tag;
+                if (submission.question.tags) {
+                  const tags = Array.isArray(submission.question.tags) ? 
+                    submission.question.tags : [submission.question.tags];
                   
-                  if (!tagMastery[tagName]) {
-                    tagMastery[tagName] = { correct: 0, total: 0, exerciseCount: 0 };
-                  }
-                  
-                  tagMastery[tagName].total += 1;
-                  tagMastery[tagName].exerciseCount += 1;
-                  
-                  if (isCorrect) {
-                    tagMastery[tagName].correct += 1;
-                  }
-                });
+                  tags.forEach(tag => {
+                    // 确保标签是字符串
+                    const tagName = typeof tag === 'object' ? tag.name : tag;
+                    
+                    if (!tagMastery[tagName]) {
+                      tagMastery[tagName] = { correct: 0, total: 0, exerciseCount: 0 };
+                    }
+                    
+                    tagMastery[tagName].total += 1;
+                    tagMastery[tagName].exerciseCount += 1;
+                    
+                    if (isCorrect) {
+                      tagMastery[tagName].correct += 1;
+                    }
+                  });
+                }
               }
               
               // 获取最近成绩记录
-              if (submission.score !== undefined) {
+              if (submission.isCorrect !== undefined) {
                 stats.recentScores.push({
                   exerciseId: submission.question ? submission.question._id : 'unknown',
                   exerciseTitle: submission.question ? submission.question.title : '未知题目',
-                  score: submission.score,
+                  score: submission.isCorrect ? 100 : 0,
                   timestamp: submission.submittedAt
                 });
               }
             });
+            
+            // 处理分类统计的平均分计算
+            Object.keys(categoryStats).forEach(category => {
+              const data = categoryStats[category];
+              data.averageScore = data.count > 0 ? Math.round(data.totalScore / data.count) : 0;
+            });
+            
+            // 更新分类统计
+            stats.exercisesByCategory = categoryStats;
             
             // 计算标签掌握百分比
             const tagMasteryWithPercentage = Object.entries(tagMastery).map(([tag, data]) => ({
@@ -603,28 +693,6 @@ export const getUserStatistics = async (userId) => {
     } catch (error) {
       console.error('从API获取学习进度失败:', error);
       // 失败时可以回退到本地数据
-    }
-    
-    // 如果后端API获取失败，尝试从localStorage获取备份统计信息
-    if (stats.totalAnswered === 0 && stats.tagMastery === undefined) {
-      const statsString = localStorage.getItem(`qa_stats_${userId}`);
-      
-      if (statsString) {
-        const localStats = JSON.parse(statsString);
-        // 合并本地数据，但优先使用后端数据
-        stats = { ...localStats, ...stats };
-      }
-      
-      // 如果本地也没有，尝试从本地练习记录计算
-      if (stats.totalExercises === 0) {
-        const records = getExerciseRecords(userId);
-        if (records.length > 0) {
-          // 计算本地统计数据作为备份
-          const localCalculatedStats = calculateStatistics(records, userId);
-          // 合并本地计算的统计数据，但依然优先使用后端数据
-          stats = { ...localCalculatedStats, ...stats };
-        }
-      }
     }
     
     // 保存统计数据到localStorage作为缓存
@@ -778,8 +846,12 @@ const updateStatistics = async (newRecord) => {
     
     if (!stats) return;
     
-    // 增加练习总数
-    stats.totalExercises++;
+    // 只有当练习100%正确率时才增加练习总数
+    const percentage = newRecord.results?.percentage || 0;
+    if (percentage === 100) {
+      stats.totalExercises++;
+      console.log('练习100%正确率，已完成练习数+1');
+    }
     
     // 如果有结果信息
     if (newRecord.results) {
