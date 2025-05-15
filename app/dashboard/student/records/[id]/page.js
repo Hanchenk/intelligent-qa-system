@@ -491,7 +491,7 @@ export default function RecordDetailPage({ params }) {
                 {tags && tags.length > 0 && (
                   <ListItem disablePadding sx={{ py: 1 }}>
                     <ListItemText 
-                      primary="标签" 
+                      primary="课程" 
                       secondary={
                         <Box display="flex" flexWrap="wrap" gap={0.5} mt={0.5}>
                           {tags.map((tag, i) => (

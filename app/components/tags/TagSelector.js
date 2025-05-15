@@ -6,7 +6,7 @@ import Link from 'next/link';
 // API URL
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-const TagSelector = ({ selectedTags = [], onChange, placeholder = "选择或搜索标签..." }) => {
+const TagSelector = ({ selectedTags = [], onChange, placeholder = "选择或搜索课程..." }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [tags, setTags] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -15,11 +15,11 @@ const TagSelector = ({ selectedTags = [], onChange, placeholder = "选择或搜�
   const dropdownRef = useRef(null);
   const searchInputRef = useRef(null);
 
-  // 获取标签数据
+  // 获取课程数据
   const fetchTags = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API_URL}/tags`, {
+      const res = await axios.get(`${API_URL}/api/tags`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }
@@ -27,19 +27,19 @@ const TagSelector = ({ selectedTags = [], onChange, placeholder = "选择或搜�
       setTags(res.data.data);
       setFilteredTags(res.data.data);
     } catch (error) {
-      console.error('获取标签失败:', error);
-      toast.error('无法加载标签，请稍后重试');
+      console.error('获取课程失败:', error);
+      toast.error('无法加载课程，请稍后重试');
     } finally {
       setLoading(false);
     }
   };
 
-  // 初始化加载标签
+  // 初始化加载课程
   useEffect(() => {
     fetchTags();
   }, []);
 
-  // 过滤标签
+  // 过滤课程
   useEffect(() => {
     if (search.trim() === '') {
       setFilteredTags(tags);
@@ -66,18 +66,18 @@ const TagSelector = ({ selectedTags = [], onChange, placeholder = "选择或搜�
     };
   }, []);
 
-  // 处理标签选择
+  // 处理课程选择
   const handleTagSelect = (tag) => {
-    // 检查标签是否已被选中
+    // 检查课程是否已被选中
     const tagIndex = selectedTags.findIndex(t => t._id === tag._id);
     
     let newSelectedTags;
     if (tagIndex >= 0) {
-      // 如果已选中，则移除该标签
+      // 如果已选中，则移除该课程
       newSelectedTags = [...selectedTags];
       newSelectedTags.splice(tagIndex, 1);
     } else {
-      // 如果未选中，则添加该标签
+      // 如果未选中，则添加该课程
       newSelectedTags = [...selectedTags, tag];
     }
     
@@ -85,7 +85,7 @@ const TagSelector = ({ selectedTags = [], onChange, placeholder = "选择或搜�
     setSearch('');
   };
 
-  // 移除标签
+  // 移除课程
   const handleRemoveTag = (e, tagId) => {
     e.stopPropagation();
     const newSelectedTags = selectedTags.filter(tag => tag._id !== tagId);
@@ -104,7 +104,7 @@ const TagSelector = ({ selectedTags = [], onChange, placeholder = "选择或搜�
 
   return (
     <div className="relative" ref={dropdownRef}>
-      {/* 标签显示区域 */}
+      {/* 课程显示区域 */}
       <div 
         className={`w-full min-h-[42px] px-2 py-1 border rounded-lg cursor-text flex flex-wrap items-center gap-1 ${
           isOpen ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-300 hover:border-gray-400'
@@ -135,7 +135,7 @@ const TagSelector = ({ selectedTags = [], onChange, placeholder = "选择或搜�
               ref={searchInputRef}
               type="text" 
               className="flex-grow min-w-[120px] border-0 outline-none text-sm py-1 px-2 my-1"
-              placeholder={selectedTags.length > 0 ? "添加更多标签..." : placeholder}
+              placeholder={selectedTags.length > 0 ? "添加更多课程..." : placeholder}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onFocus={() => setIsOpen(true)}
@@ -161,7 +161,7 @@ const TagSelector = ({ selectedTags = [], onChange, placeholder = "选择或搜�
             <div className="p-3 text-center text-gray-500">加载中...</div>
           ) : filteredTags.length === 0 ? (
             <div className="p-3 text-center text-gray-500">
-              {search ? '未找到匹配的标签' : '暂无可用标签'}
+              {search ? '未找到匹配的课程' : '暂无可用课程'}
             </div>
           ) : (
             <div>
@@ -201,7 +201,7 @@ const TagSelector = ({ selectedTags = [], onChange, placeholder = "选择或搜�
               className="text-xs text-blue-600 hover:text-blue-800 block text-center"
               onClick={() => setIsOpen(false)}
             >
-              管理标签
+              管理课程
             </Link>
           </div>
         </div>

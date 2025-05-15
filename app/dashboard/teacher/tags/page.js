@@ -36,8 +36,8 @@ const TagsPage = () => {
       });
       setTags(res.data.data || []);
     } catch (error) {
-      console.error('获取标签失败:', error);
-      toast.error('获取标签列表失败，请稍后重试');
+      console.error('获取课程失败:', error);
+      toast.error('获取课程列表失败，请稍后重试');
       setTags([]); // 确保在错误时设置为空数组
     } finally {
       setLoading(false);
@@ -54,7 +54,7 @@ const TagsPage = () => {
       });
       setPopularTags(res.data.data || []);
     } catch (error) {
-      console.error('获取热门标签失败:', error);
+      console.error('获取热门课程失败:', error);
       setPopularTags([]); // 确保在错误时设置为空数组
     }
   };
@@ -76,7 +76,7 @@ const TagsPage = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('确定要删除这个标签吗？')) return;
+    if (!window.confirm('确定要删除这个课程吗？')) return;
 
     try {
       await axios.delete(`${API_URL}/tags/${id}`, {
@@ -85,15 +85,15 @@ const TagsPage = () => {
         }
       });
       
-      toast.success('标签删除成功');
+      toast.success('课程删除成功');
       fetchTags();
       fetchPopularTags();
     } catch (error) {
-      console.error('删除标签失败:', error);
+      console.error('删除课程失败:', error);
       if (error.response && error.response.data.message) {
         toast.error(error.response.data.message);
       } else {
-        toast.error('删除标签失败，请稍后重试');
+        toast.error('删除课程失败，请稍后重试');
       }
     }
   };
@@ -106,7 +106,7 @@ const TagsPage = () => {
   const handleFormSubmit = async (tagData) => {
     try {
       if (editingTag) {
-        // 更新标签
+        // 更新课程
         await axios.put(
           `${API_URL}/tags/${editingTag._id}`,
           tagData,
@@ -116,9 +116,9 @@ const TagsPage = () => {
             }
           }
         );
-        toast.success('标签更新成功');
+        toast.success('课程更新成功');
       } else {
-        // 创建新标签
+        // 创建新课程
         await axios.post(
           `${API_URL}/tags`,
           tagData,
@@ -128,7 +128,7 @@ const TagsPage = () => {
             }
           }
         );
-        toast.success('标签创建成功');
+        toast.success('课程创建成功');
       }
       
       setShowForm(false);
@@ -136,11 +136,11 @@ const TagsPage = () => {
       fetchTags();
       fetchPopularTags();
     } catch (error) {
-      console.error('保存标签失败:', error);
+      console.error('保存课程失败:', error);
       if (error.response && error.response.data.message) {
         toast.error(error.response.data.message);
       } else {
-        toast.error('保存标签失败，请稍后重试');
+        toast.error('保存课程失败，请稍后重试');
       }
     }
   };
@@ -159,7 +159,7 @@ const TagsPage = () => {
               }}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
             >
-              创建标签
+              创建课程
             </button>
           </div>
 
@@ -170,7 +170,7 @@ const TagsPage = () => {
                 type="text"
                 value={search}
                 onChange={handleSearchChange}
-                placeholder="搜索标签名称..."
+                placeholder="搜索课程名称..."
                 className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <button
@@ -182,10 +182,10 @@ const TagsPage = () => {
             </form>
           </div>
 
-          {/* 热门标签 */}
+          {/* 热门课程 */}
           {popularTags.length > 0 && (
             <div className="bg-white p-4 rounded-lg shadow mb-6">
-              <h2 className="text-lg font-medium text-gray-800 mb-3">热门标签</h2>
+              <h2 className="text-lg font-medium text-gray-800 mb-3">热门课程</h2>
               <div className="flex flex-wrap gap-2">
                 {popularTags.map(tag => (
                   <div
@@ -200,7 +200,7 @@ const TagsPage = () => {
             </div>
           )}
 
-          {/* 标签列表 */}
+          {/* 课程列表 */}
           <div className="bg-white rounded-lg shadow overflow-hidden">
             {loading ? (
               <div className="flex justify-center items-center p-12">
@@ -208,7 +208,7 @@ const TagsPage = () => {
               </div>
             ) : tags.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
-                {search ? '没有找到匹配的标签' : '还没有创建任何标签，点击"创建标签"按钮开始添加'}
+                {search ? '没有找到匹配的课程' : '还没有创建任何课程，点击"创建课程"按钮开始添加'}
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
@@ -225,13 +225,13 @@ const TagsPage = () => {
           </div>
         </div>
 
-        {/* 标签表单模态框 */}
+        {/* 课程表单模态框 */}
         {showForm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold">
-                  {editingTag ? '编辑标签' : '创建新标签'}
+                  {editingTag ? '编辑课程' : '创建新课程'}
                 </h2>
                 <button
                   onClick={() => {

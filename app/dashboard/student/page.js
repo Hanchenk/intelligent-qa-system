@@ -45,10 +45,6 @@ export default function StudentDashboard() {
 
         // 确保API URL正确构建
         let apiEndpoint = `${API_URL}/api/stats/student-dashboard`;
-        // 处理可能的重复/api路径问题
-        if (API_URL.endsWith('/api') && apiEndpoint.includes('/api/api/')) {
-          apiEndpoint = apiEndpoint.replace('/api/api/', '/api/');
-        }
         console.log('请求统计数据API:', apiEndpoint);
 
         const response = await axios.get(apiEndpoint, {

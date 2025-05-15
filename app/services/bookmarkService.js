@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 /**
  * 获取用户的所有收藏
@@ -13,7 +13,7 @@ export const getUserBookmarks = async () => {
       throw new Error('未授权，请先登录');
     }
 
-    const response = await axios.get(`${API_URL}/bookmarks`, {
+    const response = await axios.get(`${API_URL}/api/bookmarks`, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -31,7 +31,7 @@ export const getUserBookmarks = async () => {
  * @param {Object} bookmarkData - 收藏数据对象
  * @param {string} bookmarkData.exerciseId - 练习ID
  * @param {string} bookmarkData.exerciseTitle - 练习标题
- * @param {Array} bookmarkData.tags - 练习标签
+ * @param {Array} bookmarkData.tags - 练习课程
  * @returns {Promise} - 包含新收藏数据的Promise
  */
 export const createBookmark = async (bookmarkData) => {
@@ -41,7 +41,7 @@ export const createBookmark = async (bookmarkData) => {
       throw new Error('未授权，请先登录');
     }
 
-    const response = await axios.post(`${API_URL}/bookmarks`, bookmarkData, {
+    const response = await axios.post(`${API_URL}/api/bookmarks`, bookmarkData, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -66,7 +66,7 @@ export const deleteBookmark = async (bookmarkId) => {
       throw new Error('未授权，请先登录');
     }
 
-    const response = await axios.delete(`${API_URL}/bookmarks/${bookmarkId}`, {
+    const response = await axios.delete(`${API_URL}/api/bookmarks/${bookmarkId}`, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -91,7 +91,7 @@ export const deleteBookmarkByExerciseId = async (exerciseId) => {
       throw new Error('未授权，请先登录');
     }
 
-    const response = await axios.delete(`${API_URL}/bookmarks/exercise/${exerciseId}`, {
+    const response = await axios.delete(`${API_URL}/api/bookmarks/exercise/${exerciseId}`, {
       headers: {
         Authorization: `Bearer ${token}`
       }

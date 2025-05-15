@@ -49,7 +49,7 @@ const TagForm = ({ initialData, onSubmit, onCancel }) => {
     const newErrors = {};
     
     if (!formData.name.trim()) {
-      newErrors.name = '标签名称不能为空';
+      newErrors.name = '课程名称不能为空';
     }
     
     setErrors(newErrors);
@@ -72,7 +72,7 @@ const TagForm = ({ initialData, onSubmit, onCancel }) => {
     <form onSubmit={handleSubmit}>
       <div className="mb-4">
         <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="name">
-          标签名称 <span className="text-red-500">*</span>
+          课程名称 <span className="text-red-500">*</span>
         </label>
         <input
           type="text"
@@ -83,7 +83,7 @@ const TagForm = ({ initialData, onSubmit, onCancel }) => {
           className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
             errors.name ? 'border-red-500' : 'border-gray-300'
           }`}
-          placeholder="输入标签名称"
+          placeholder="输入课程名称"
         />
         {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
       </div>
@@ -98,14 +98,14 @@ const TagForm = ({ initialData, onSubmit, onCancel }) => {
           value={formData.description}
           onChange={handleChange}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="输入标签描述（选填）"
+          placeholder="输入课程描述（选填）"
           rows="3"
         />
       </div>
       
       <div className="mb-4">
         <label className="block text-gray-700 text-sm font-bold mb-2">
-          标签颜色
+          课程颜色
         </label>
         <div className="flex flex-wrap gap-2 mb-2">
           {DEFAULT_COLORS.map(color => (
@@ -146,7 +146,7 @@ const TagForm = ({ initialData, onSubmit, onCancel }) => {
           type="submit"
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          {initialData ? '更新标签' : '创建标签'}
+          {initialData ? '更新课程' : '创建课程'}
         </button>
       </div>
     </form>

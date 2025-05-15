@@ -91,7 +91,7 @@ export default function StudentRecordsPage() {
     try {
       const userRecords = await getExerciseRecords(userId);
       
-      // 提取所有标签
+      // 提取所有课程
       const allTags = new Set();
       userRecords.forEach(record => {
         if (record.tags && Array.isArray(record.tags)) {
@@ -167,7 +167,7 @@ export default function StudentRecordsPage() {
       }
     ];
     
-    // 设置记录和标签
+    // 设置记录和课程
     setRecords(mockRecords);
     setTags([...new Set(mockRecords.flatMap(r => r.tags))]);
     setLoading(false);
@@ -186,7 +186,7 @@ export default function StudentRecordsPage() {
       );
     }
     
-    // 按标签过滤
+    // 按课程过滤
     if (filterTag !== 'all') {
       filtered = filtered.filter(record => 
         record.tags && record.tags.includes(filterTag)
@@ -227,7 +227,7 @@ export default function StudentRecordsPage() {
     setSortBy(event.target.value);
   };
   
-  // 处理标签过滤变化
+  // 处理课程过滤变化
   const handleTagFilterChange = (event) => {
     setFilterTag(event.target.value);
   };
@@ -339,11 +339,11 @@ export default function StudentRecordsPage() {
                   </FormControl>
                   
                   <FormControl variant="outlined" size="small" className="min-w-[120px]">
-                    <InputLabel>标签</InputLabel>
+                    <InputLabel>课程</InputLabel>
                     <Select
                       value={filterTag}
                       onChange={handleTagFilterChange}
-                      label="标签"
+                      label="课程"
                       startAdornment={<FilterListIcon className="mr-2" />}
                     >
                       <MenuItem value="all">全部</MenuItem>
@@ -374,7 +374,7 @@ export default function StudentRecordsPage() {
                           <TableCell align="center">分数</TableCell>
                           <TableCell align="center">题目数</TableCell>
                           <TableCell align="center">用时</TableCell>
-                          <TableCell align="center">标签</TableCell>
+                          <TableCell align="center">课程</TableCell>
                           <TableCell align="center">操作</TableCell>
                         </TableRow>
                       </TableHead>

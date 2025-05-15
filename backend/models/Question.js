@@ -66,14 +66,14 @@ const questionSchema = new mongoose.Schema({
 // 添加索引以支持搜索功能
 questionSchema.index({ title: 'text', type: 1, difficulty: 1 });
 
-// 更新标签使用计数的中间件
+// 更新课程使用计数的中间件
 questionSchema.pre('save', async function (next) {
   const Tag = mongoose.model('Tag');
   
-  // 如果标签发生了变化
+  // 如果课程发生了变化
   if (this.isModified('tags')) {
     try {
-      // 获取当前标签ID列表
+      // 获取当前课程ID列表
       const currentTagIds = this.tags || [];
       
       // 查询当前文档的原始状态（如果存在）
@@ -83,17 +83,17 @@ questionSchema.pre('save', async function (next) {
         oldTagIds = oldDoc ? oldDoc.tags || [] : [];
       }
       
-      // 计算要增加计数的标签（新增的）
+      // 计算要增加计数的课程（新增的）
       const tagsToIncrement = currentTagIds.filter(tagId => 
         !oldTagIds.some(oldId => oldId.toString() === tagId.toString())
       );
       
-      // 计算要减少计数的标签（移除的）
+      // 计算要减少计数的课程（移除的）
       const tagsToDecrement = oldTagIds.filter(oldId => 
         !currentTagIds.some(tagId => tagId.toString() === oldId.toString())
       );
       
-      // 增加新标签的使用计数
+      // 增加新课程的使用计数
       if (tagsToIncrement.length > 0) {
         await Tag.updateMany(
           { _id: { $in: tagsToIncrement } },
@@ -101,7 +101,7 @@ questionSchema.pre('save', async function (next) {
         );
       }
       
-      // 减少移除标签的使用计数
+      // 减少移除课程的使用计数
       if (tagsToDecrement.length > 0) {
         await Tag.updateMany(
           { _id: { $in: tagsToDecrement } },
@@ -109,22 +109,22 @@ questionSchema.pre('save', async function (next) {
         );
       }
     } catch (error) {
-      console.error('更新标签计数出错:', error);
+      console.error('更新课程计数出错:', error);
     }
   }
   
   next();
 });
 
-// 删除文档时减少关联标签的使用计数
+// 删除文档时减少关联课程的使用计数
 questionSchema.pre('deleteOne', { document: true }, async function (next) {
   const Tag = mongoose.model('Tag');
   
   try {
-    // 获取当前文档的标签ID列表
+    // 获取当前文档的课程ID列表
     const tagIds = this.tags || [];
     
-    // 减少所有关联标签的使用计数
+    // 减少所有关联课程的使用计数
     if (tagIds.length > 0) {
       await Tag.updateMany(
         { _id: { $in: tagIds } },
@@ -132,7 +132,7 @@ questionSchema.pre('deleteOne', { document: true }, async function (next) {
       );
     }
   } catch (error) {
-    console.error('删除时更新标签计数出错:', error);
+    console.error('删除时更新课程计数出错:', error);
   }
   
   next();

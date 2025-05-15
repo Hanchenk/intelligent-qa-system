@@ -37,7 +37,7 @@ export const fetchQuestions = createAsyncThunk(
         params
       };
       
-      const response = await axios.get(`${API_URL}/questions`, config);
+      const response = await axios.get(`${API_URL}/api/questions`, config);
       return response.data;
     } catch (error) {
       return rejectWithValue(
@@ -64,7 +64,7 @@ export const fetchQuestionById = createAsyncThunk(
         }
       };
       
-      const response = await axios.get(`${API_URL}/questions/${id}`, config);
+      const response = await axios.get(`${API_URL}/api/questions/${id}`, config);
       return response.data;
     } catch (error) {
       return rejectWithValue(
@@ -91,7 +91,7 @@ export const createQuestion = createAsyncThunk(
         }
       };
       
-      const response = await axios.post(`${API_URL}/questions`, questionData, config);
+      const response = await axios.post(`${API_URL}/api/questions`, questionData, config);
       return response.data;
     } catch (error) {
       return rejectWithValue(
@@ -118,7 +118,7 @@ export const updateQuestion = createAsyncThunk(
         }
       };
       
-      const response = await axios.put(`${API_URL}/questions/${id}`, questionData, config);
+      const response = await axios.put(`${API_URL}/api/questions/${id}`, questionData, config);
       return response.data;
     } catch (error) {
       return rejectWithValue(
@@ -145,7 +145,7 @@ export const deleteQuestion = createAsyncThunk(
         }
       };
       
-      const response = await axios.delete(`${API_URL}/questions/${id}`, config);
+      const response = await axios.delete(`${API_URL}/api/questions/${id}`, config);
       return { id, ...response.data };
     } catch (error) {
       return rejectWithValue(
@@ -173,7 +173,7 @@ export const searchQuestions = createAsyncThunk(
         params: { query }
       };
       
-      const response = await axios.get(`${API_URL}/questions/search`, config);
+      const response = await axios.get(`${API_URL}/api/questions/search`, config);
       return response.data;
     } catch (error) {
       return rejectWithValue(

@@ -61,7 +61,7 @@ export default function CreateQuestionPage() {
     ],
     correctAnswer: '',  // 用于填空题、判断题
     explanation: '',    // 解析
-    tags: []            // 标签 - 现在存储对象数组，每个对象包含_id和name
+    tags: []            // 课程 - 现在存储对象数组，每个对象包含_id和name
   });
   
   // 表单验证错误
@@ -192,11 +192,11 @@ export default function CreateQuestionPage() {
     });
   };
   
-  // 处理标签变更
+  // 处理课程变更
   const handleTagsChange = (newTags) => {
     setQuestion({
       ...question,
-      tags: newTags // 新的标签对象数组
+      tags: newTags // 新的课程对象数组
     });
   };
   
@@ -589,18 +589,18 @@ export default function CreateQuestionPage() {
                     />
                   </Box>
                   
-                  {/* 标签输入 */}
+                  {/* 课程输入 */}
                   <Box className="mt-6">
                     <Typography variant="subtitle1" className="mb-2 font-bold">
-                      标签
+                      课程
                     </Typography>
                     <TagSelector 
                       selectedTags={question.tags} 
                       onChange={handleTagsChange}
-                      placeholder="选择或搜索相关标签..."
+                      placeholder="选择或搜索相关课程..."
                     />
                     <FormHelperText>
-                      添加标签有助于对题目分类和查找
+                      添加课程有助于对题目分类和查找
                     </FormHelperText>
                   </Box>
                 </Box>

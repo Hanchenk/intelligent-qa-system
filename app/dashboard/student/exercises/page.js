@@ -74,14 +74,14 @@ export default function StudentExercisesPage() {
       // 构建查询参数
       const params = {
         page: 1,
-        limit: 50  // 增加获取的题目数量，确保我们能得到所有标签的数据
+        limit: 50  // 增加获取的题目数量，确保我们能得到所有课程的数据
       };
       
       if (difficulty && difficulty !== 'all') {
         params.difficulty = difficulty;
       }
       
-      // 只有当实际选择了标签时才添加标签筛选
+      // 只有当实际选择了课程时才添加课程筛选
       if (selectedTags && selectedTags.length > 0) {
         params.tags = selectedTags.join(',');
       }
@@ -89,7 +89,7 @@ export default function StudentExercisesPage() {
       console.log("请求参数:", params);
       
       // 从API获取数据
-      const response = await axios.get(`${API_URL}/questions`, {
+      const response = await axios.get(`${API_URL}/api/questions`, {
         headers: { Authorization: `Bearer ${token}` },
         params
       });
@@ -135,15 +135,15 @@ export default function StudentExercisesPage() {
   useEffect(() => {
     fetchExercises();
     
-    // 加载可用标签
+    // 加载可用课程
     const fetchTags = async () => {
       try {
-        const response = await axios.get(`${API_URL}/tags`, {
+        const response = await axios.get(`${API_URL}/api/tags`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setAvailableTags(response.data.data || []);
       } catch (err) {
-        console.error('获取标签列表失败:', err);
+        console.error('获取课程列表失败:', err);
         setAvailableTags([]);
       }
     };
@@ -160,14 +160,14 @@ export default function StudentExercisesPage() {
   const transformQuestionsToExercises = (questions) => {
     console.log("原始问题数据:", questions);
     
-    // 按标签分组题目
+    // 按课程分组题目
     const taggedQuestions = {};
     
-    // 首先收集所有现有的标签集合
+    // 首先收集所有现有的课程集合
     questions.forEach(question => {
       if (question.tags && Array.isArray(question.tags)) {
         question.tags.forEach(tag => {
-          // 处理标签可能是对象或字符串的情况
+          // 处理课程可能是对象或字符串的情况
           const tagName = typeof tag === 'object' && tag !== null ? 
             (tag.name || '') : (tag || '');
             
@@ -182,11 +182,11 @@ export default function StudentExercisesPage() {
       }
     });
     
-    // 然后将所有题目分配到对应的标签练习中
+    // 然后将所有题目分配到对应的课程练习中
     questions.forEach(question => {
       if (question.tags && Array.isArray(question.tags)) {
         question.tags.forEach(tag => {
-          // 处理标签可能是对象或字符串的情况
+          // 处理课程可能是对象或字符串的情况
           const tagName = typeof tag === 'object' && tag !== null ? 
             (tag.name || '') : (tag || '');
             
@@ -207,7 +207,7 @@ export default function StudentExercisesPage() {
       }
     });
     
-    // 添加一个未分类标签，用于没有标签的题目
+    // 添加一个未分类课程，用于没有课程的题目
     const untaggedQuestions = questions.filter(q => !q.tags || !Array.isArray(q.tags) || q.tags.length === 0);
     if (untaggedQuestions.length > 0) {
       taggedQuestions['未分类'] = {
@@ -235,9 +235,9 @@ export default function StudentExercisesPage() {
         totalQuestions: data.questions.length,
         difficulty: data.difficulty || '中等',
         tags: data.tags,
-        tagName: tag, // 保存标签名，方便筛选
+        tagName: tag, // 保存课程名，方便筛选
         completedCount: totalAttempts, // 使用总尝试次数
-        description: `包含所有"${tag}"标签的题目，总计${data.questions.length}道题。`,
+        description: `包含所有"${tag}"课程的题目，总计${data.questions.length}道题。`,
         questionIds: data.questions.map(q => q._id) // 保存题目ID列表，用于开始练习
       };
     });
@@ -297,7 +297,7 @@ export default function StudentExercisesPage() {
     }
   };
   
-  // 渲染难度标签
+  // 渲染难度课程
   const renderDifficultyChip = (difficulty) => {
     let color = 'default';
     
@@ -324,10 +324,10 @@ export default function StudentExercisesPage() {
     setCurrentPage(1); // 重置页码
   };
   
-  // 处理标签筛选变化
+  // 处理课程筛选变化
   const handleTagChange = (event) => {
     const values = event.target.value;
-    console.log("选择的标签:", values);
+    console.log("选择的课程:", values);
     setSelectedTags(values);
     setCurrentPage(1); // 重置页码
   };
@@ -346,7 +346,7 @@ export default function StudentExercisesPage() {
                     我的练习
                   </Typography>
                   <Typography variant="body2" color="textSecondary" className="mb-4 md:mb-0">
-                    每个标签对应一个练习，包含该标签下的所有题目
+                    每个课程对应一个练习，包含该课程下的所有题目
                   </Typography>
                 </div>
                 
@@ -368,13 +368,13 @@ export default function StudentExercisesPage() {
                   </FormControl>
                   
                   <FormControl size="small" style={{ minWidth: 150 }}>
-                    <InputLabel id="tags-select-label">标签</InputLabel>
+                    <InputLabel id="tags-select-label">课程</InputLabel>
                     <Select
                       labelId="tags-select-label"
                       multiple
                       value={selectedTags}
                       onChange={handleTagChange}
-                      input={<OutlinedInput label="标签" />}
+                      input={<OutlinedInput label="课程" />}
                       renderValue={(selected) => (
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                           {selected.map((value) => {
@@ -391,7 +391,7 @@ export default function StudentExercisesPage() {
                           </MenuItem>
                         ))
                       ) : (
-                        <MenuItem disabled>暂无可用标签</MenuItem>
+                        <MenuItem disabled>暂无可用课程</MenuItem>
                       )}
                     </Select>
                   </FormControl>
@@ -399,7 +399,7 @@ export default function StudentExercisesPage() {
                   <Box component="form" onSubmit={handleSearch} className="w-full md:w-auto">
                     <TextField
                       size="small"
-                      placeholder="搜索标签或练习..."
+                      placeholder="搜索课程或练习..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       InputProps={{

@@ -21,34 +21,34 @@ router.post('/', protect, authorize('teacher'), async (req, res) => {
       tags
     } = req.body;
 
-    // 验证标签IDs
+    // 验证课程IDs
     if (tags && tags.length > 0) {
-      // 验证所有标签ID是否有效
+      // 验证所有课程ID是否有效
       for (const tagId of tags) {
         // 检查是否为有效的MongoDB ObjectId
         if (!mongoose.Types.ObjectId.isValid(tagId)) {
           return res.status(400).json({
             success: false,
-            message: `标签ID格式无效: ${tagId}`
+            message: `课程ID格式无效: ${tagId}`
           });
         }
 
-        // 检查标签是否存在且用户有权使用
+        // 检查课程是否存在且用户有权使用
         const tag = await Tag.findById(tagId);
         if (!tag) {
           return res.status(400).json({
             success: false,
-            message: `标签ID不存在: ${tagId}`
+            message: `课程ID不存在: ${tagId}`
           });
         }
 
-        // 验证权限：教师只能使用自己创建的或全局标签
+        // 验证权限：教师只能使用自己创建的或全局课程
         if (req.user.role === 'teacher' && 
             tag.creator.toString() !== req.user._id.toString() && 
             !tag.isGlobal) {
           return res.status(403).json({
             success: false,
-            message: `无权使用标签: ${tag.name}`
+            message: `无权使用课程: ${tag.name}`
           });
         }
       }
@@ -69,7 +69,7 @@ router.post('/', protect, authorize('teacher'), async (req, res) => {
 
     await question.save();
 
-    // 填充返回数据中的标签和创建者信息
+    // 填充返回数据中的课程和创建者信息
     await question.populate('tags', 'name color');
     await question.populate('creator', 'username');
 
@@ -113,9 +113,9 @@ router.get('/', protect, async (req, res) => {
     if (type && type !== 'all') query.type = type;
     if (difficulty && difficulty !== 'all') query.difficulty = difficulty;
     
-    // 标签筛选
+    // 课程筛选
     if (tags) {
-      // 支持多个标签ID，以逗号分隔
+      // 支持多个课程ID，以逗号分隔
       const tagIds = tags.split(',').filter(id => id.trim());
       if (tagIds.length > 0) {
         query.tags = { $in: tagIds };
@@ -240,34 +240,34 @@ router.put('/:id', protect, authorize('teacher'), async (req, res) => {
       tags
     } = req.body;
 
-    // 验证标签IDs
+    // 验证课程IDs
     if (tags && tags.length > 0) {
-      // 验证所有标签ID是否有效
+      // 验证所有课程ID是否有效
       for (const tagId of tags) {
         // 检查是否为有效的MongoDB ObjectId
         if (!mongoose.Types.ObjectId.isValid(tagId)) {
           return res.status(400).json({
             success: false,
-            message: `标签ID格式无效: ${tagId}`
+            message: `课程ID格式无效: ${tagId}`
           });
         }
 
-        // 检查标签是否存在且用户有权使用
+        // 检查课程是否存在且用户有权使用
         const tag = await Tag.findById(tagId);
         if (!tag) {
           return res.status(400).json({
             success: false,
-            message: `标签ID不存在: ${tagId}`
+            message: `课程ID不存在: ${tagId}`
           });
         }
 
-        // 验证权限：教师只能使用自己创建的或全局标签
+        // 验证权限：教师只能使用自己创建的或全局课程
         if (req.user.role === 'teacher' && 
             tag.creator.toString() !== req.user._id.toString() && 
             !tag.isGlobal) {
           return res.status(403).json({
             success: false,
-            message: `无权使用标签: ${tag.name}`
+            message: `无权使用课程: ${tag.name}`
           });
         }
       }
@@ -331,7 +331,7 @@ router.delete('/:id', protect, authorize('teacher'), async (req, res) => {
     if (question.useCount > 0) {
       await Question.findByIdAndUpdate(req.params.id, { isActive: false });
     } else {
-      // 删除题目前先减少关联标签的使用计数
+      // 删除题目前先减少关联课程的使用计数
       await question.deleteOne();
     }
 

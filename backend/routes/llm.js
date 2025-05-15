@@ -70,7 +70,7 @@ router.post('/generate-questions', protect, authorize('teacher'), async (req, re
     "answer": "正确选项",
     "explanation": "详细解析",
     "difficulty": "${difficulty || '中等'}",
-    "tags": ["标签1", "标签2"],
+    "tags": ["课程1", "课程2"],
     "category": "${topic}"
   }
 ]`;
@@ -89,7 +89,7 @@ router.post('/generate-questions', protect, authorize('teacher'), async (req, re
     "explanation": "评分标准和解析",
     "difficulty": "${difficulty || '中等'}",
     "score": 10,
-    "tags": ["标签1", "标签2"],
+    "tags": ["课程1", "课程2"],
     "category": "${topic}"
   }
 ]`;
@@ -118,7 +118,7 @@ router.post('/generate-questions', protect, authorize('teacher'), async (req, re
     "explanation": "算法思路解析和评分标准",
     "difficulty": "${difficulty || '中等'}",
     "score": 20,
-    "tags": ["标签1", "标签2"],
+    "tags": ["课程1", "课程2"],
     "category": "${topic}"
   }
 ]`;
@@ -319,7 +319,7 @@ router.post('/generate-feedback', protect, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // 查询用户的未解决错题记录，并填充问题信息以获取标签
+    // 查询用户的未解决错题记录，并填充问题信息以获取课程
     const mistakes = await MistakeRecord.find({ user: userId, resolved: false })
       .populate({
         path: 'question',
@@ -348,12 +348,12 @@ router.post('/generate-feedback', protect, async (req, res) => {
       });
     }
 
-    // 统计错题标签
+    // 统计错题课程
     const mistakeTags = {};
     mistakes.forEach(mistake => {
       if (mistake.question && mistake.question.tags) {
         mistake.question.tags.forEach(tag => {
-          // 获取标签名称，而不是标签ID
+          // 获取课程名称，而不是课程ID
           const tagName = tag.name || tag;
           mistakeTags[tagName] = (mistakeTags[tagName] || 0) + 1;
         });
@@ -368,17 +368,17 @@ router.post('/generate-feedback', protect, async (req, res) => {
       count
     }));
 
-    // 构建错题标签分析文本
+    // 构建错题课程分析文本
     const tagAnalysis = sortedMistakeTags.map(([tag, count]) => `${tag} (${count}次错误)`).join(', ');
 
     // 构建新的 Prompt
-    const prompt = `根据以下学生的错题标签统计，请分析其学习情况并提供个性化学习建议。
+    const prompt = `根据以下学生的错题课程统计，请分析其学习情况并提供个性化学习建议。
 
-学生错题标签统计 (按错误次数排序):
+学生错题课程统计 (按错误次数排序):
 ${tagAnalysis}
 
 请分析以下方面：
-1. 学生的主要弱项知识点 (基于错题标签，列出最重要的 3-5 个)
+1. 学生的主要弱项知识点 (基于错题课程，列出最重要的 3-5 个)
 2. 针对这些弱项知识点的具体改进建议 (例如，复习相关概念，做专项练习等)
 3. 推荐的学习资源或练习方向 (例如，推荐相关章节、特定类型的题目)
 4. 对学生当前学习状态的总结性评价
@@ -702,17 +702,17 @@ router.post('/recommend-questions', protect, async (req, res) => {
       });
     }
 
-    // 如果没有提供弱项标签或弱项标签为空，则从错题本中获取
+    // 如果没有提供弱项课程或弱项课程为空，则从错题本中获取
     let topicsToUse = weakTopics;
     if (!weakTopics || !Array.isArray(weakTopics) || weakTopics.length === 0) {
-      // 从错题本中提取标签
+      // 从错题本中提取课程
       const tagCounts = {};
       
       for (const record of mistakeRecords) {
         if (record.question && record.question.tags) {
-          // 为每个标签增加计数
+          // 为每个课程增加计数
           for (const tag of record.question.tags) {
-            // 获取标签名称而不是ID
+            // 获取课程名称而不是ID
             const tagName = tag.name || tag;
             if (!tagCounts[tagName]) {
               tagCounts[tagName] = 0;
@@ -722,7 +722,7 @@ router.post('/recommend-questions', protect, async (req, res) => {
         }
       }
       
-      // 将标签计数转换为弱项格式
+      // 将课程计数转换为弱项格式
       topicsToUse = Object.entries(tagCounts).map(([tag, count]) => ({
         tag: tag,
         count: count,
@@ -734,11 +734,11 @@ router.post('/recommend-questions', protect, async (req, res) => {
       topicsToUse = topicsToUse.slice(0, 3);
     }
     
-    // 如果仍然没有可用的标签，返回错误
+    // 如果仍然没有可用的课程，返回错误
     if (!topicsToUse || topicsToUse.length === 0) {
       return res.status(400).json({
         success: false,
-        message: '未找到弱项标签，且错题本为空，无法生成推荐'
+        message: '未找到弱项课程，且错题本为空，无法生成推荐'
       });
     }
 
@@ -765,7 +765,7 @@ router.post('/recommend-questions', protect, async (req, res) => {
     "correctAnswer": "正确答案", // 对于选择题是选项文本，例如 "选项A" 或 ["选项A", "选项B"]
     "explanation": "详细解析",
     "difficulty": "难度 (例如: 简单, 中等, 困难)",
-    "tags": ["相关标签1", "相关标签2"], // 确保包含与薄弱点相关的标签
+    "tags": ["相关课程1", "相关课程2"], // 确保包含与薄弱点相关的课程
     "category": "主要类别" // 题目所属的主要类别或章节
   }
 ]

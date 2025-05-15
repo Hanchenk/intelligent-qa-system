@@ -21,7 +21,7 @@ const MDPreview = dynamic(
  * Markdown编辑器组件
  * @param {string} value - 编辑器内容
  * @param {function} onChange - 内容改变时的回调函数
- * @param {string} label - 标签文本
+ * @param {string} label - 课程文本
  * @param {string} placeholder - 占位文本
  * @param {number} height - 编辑器高度，默认为200px
  * @param {boolean} fullWidth - 是否宽度100%

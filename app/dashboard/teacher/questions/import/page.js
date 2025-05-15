@@ -402,7 +402,7 @@ export default function ImportQuestionsPage() {
               <TableCell align="center">类型</TableCell>
               <TableCell align="center">难度</TableCell>
               <TableCell align="center">分值</TableCell>
-              <TableCell align="center">标签</TableCell>
+              <TableCell align="center">课程</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>

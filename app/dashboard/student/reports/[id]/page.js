@@ -196,7 +196,7 @@ export default function ReportDetailPage({ params }) {
                           </Typography>
                           {report.mistakeStats?.mistakeTags && report.mistakeStats.mistakeTags.length > 0 && (
                             <Box sx={{ mt: 1 }}>
-                              <Typography variant="body2">错题主要涉及标签:</Typography>
+                              <Typography variant="body2">错题主要涉及课程:</Typography>
                               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
                                 {report.mistakeStats.mistakeTags.slice(0, 8).map((tagInfo, idx) => (
                                   <Chip

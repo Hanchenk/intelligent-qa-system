@@ -535,7 +535,7 @@ export default function StudentMistakesPage() {
             </Box>
           )}
           
-          {/* 标签 */}
+          {/* 课程 */}
           {selectedQuestion.tags && selectedQuestion.tags.length > 0 && (
             <Box mt={3} display="flex" flexWrap="wrap" gap={1}>
               {selectedQuestion.tags.map((tag, index) => (

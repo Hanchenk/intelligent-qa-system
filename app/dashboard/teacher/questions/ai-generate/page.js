@@ -66,10 +66,10 @@ export default function AIGenerateQuestionsPage() {
   const [includeExplanation, setIncludeExplanation] = useState(true);
   const [questionCount, setQuestionCount] = useState(5);
   
-  // 所有可用标签
+  // 所有可用课程
   const [availableTags, setAvailableTags] = useState([]);
   
-  // 获取所有标签
+  // 获取所有课程
   useEffect(() => {
     const fetchTags = async () => {
       if (!token) return;
@@ -81,7 +81,7 @@ export default function AIGenerateQuestionsPage() {
         
         setAvailableTags(response.data.data || []);
       } catch (err) {
-        console.error('获取标签失败:', err);
+        console.error('获取课程失败:', err);
         // 使用模拟数据作为备用
         setAvailableTags([
           { _id: '1', name: 'JavaScript' },
@@ -233,10 +233,10 @@ export default function AIGenerateQuestionsPage() {
       let successCount = 0;
       let failedCount = 0;
       
-      // 为每个题目添加用户选择的标签
+      // 为每个题目添加用户选择的课程
       const questionsWithTags = generatedQuestions.map(question => ({
         ...question,
-        tags: selectedTags.map(tag => tag._id) // 使用标签ID
+        tags: selectedTags.map(tag => tag._id) // 使用课程ID
       }));
       
       // 逐个提交题目
@@ -288,7 +288,7 @@ export default function AIGenerateQuestionsPage() {
     setSuccess(false);
   };
   
-  // 处理标签选择
+  // 处理课程选择
   const handleTagChange = (event) => {
     const { value } = event.target;
     setSelectedTags(
@@ -383,12 +383,12 @@ export default function AIGenerateQuestionsPage() {
             
             <Grid item xs={12}>
               <FormControl fullWidth>
-                <InputLabel>所属标签</InputLabel>
+                <InputLabel>所属课程</InputLabel>
                 <Select
                   multiple
                   value={selectedTags}
                   onChange={handleTagChange}
-                  label="所属标签"
+                  label="所属课程"
                   renderValue={(selected) => (
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                       {selected.map((tag) => (

@@ -159,10 +159,10 @@ export default function StudentProgressPage() {
         { tag: 'CSS', correct: 3, total: 5, percentage: 60, exerciseCount: 1 },
         { tag: '数组', correct: 4, total: 5, percentage: 80, exerciseCount: 1 },
         { tag: '函数', correct: 3, total: 4, percentage: 75, exerciseCount: 1 },
-        { tag: '标签', correct: 4, total: 4, percentage: 100, exerciseCount: 1 }
+        { tag: '课程', correct: 4, total: 4, percentage: 100, exerciseCount: 1 }
       ],
       strongTopics: [
-        { tag: '标签', percentage: 100 },
+        { tag: '课程', percentage: 100 },
         { tag: 'JavaScript', percentage: 83 },
         { tag: 'HTML', percentage: 83 }
       ],
@@ -296,13 +296,13 @@ export default function StudentProgressPage() {
         }
       }
       
-      // 分析标签掌握情况
+      // 分析课程掌握情况
       const tagMastery = {};
       
       if (stats.records && stats.records.length > 0) {
         // 遍历所有记录
         stats.records.forEach(record => {
-          // 处理问题标签
+          // 处理问题课程
           if (record.tags && record.tags.length > 0) {
             record.tags.forEach(tag => {
               if (!tagMastery[tag]) {
@@ -318,7 +318,7 @@ export default function StudentProgressPage() {
         });
       }
       
-      // 如果不存在标签掌握情况，使用计算结果
+      // 如果不存在课程掌握情况，使用计算结果
       if (!stats.tagMastery || stats.tagMastery.length === 0) {
         stats.tagMastery = Object.entries(tagMastery).map(([tag, data]) => ({
           tag,
@@ -358,7 +358,7 @@ export default function StudentProgressPage() {
     }
   };
   
-  // 处理标签切换
+  // 处理课程切换
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
   };
@@ -464,7 +464,7 @@ export default function StudentProgressPage() {
       );
     }
     
-    // 从分类统计中提取标签的掌握程度
+    // 从分类统计中提取课程的掌握程度
     const categories = Object.entries(userStats.exercisesByCategory);
     
     // 区分优秀和需要加强的知识点
@@ -1028,7 +1028,7 @@ export default function StudentProgressPage() {
                     <TableHead>
                       <TableRow>
                         <TableCell>练习名称</TableCell>
-                        <TableCell align="center">标签</TableCell>
+                        <TableCell align="center">课程</TableCell>
                         <TableCell align="right">收藏日期</TableCell>
                         <TableCell align="right">操作</TableCell>
                       </TableRow>
@@ -1072,7 +1072,7 @@ export default function StudentProgressPage() {
     );
   };
   
-  // 在总览标签页内容中添加
+  // 在总览课程页内容中添加
   const renderOverviewTabContent = () => (
     <>
       {/* 学习报告按钮 */}
@@ -1352,8 +1352,8 @@ export default function StudentProgressPage() {
       
       // 如果没有保存的推荐题目或需要更新，则重新请求
       if (!currentStats.weakTopics || currentStats.weakTopics.length === 0) {
-        console.log("没有发现明确的弱项，从错题本中获取标签");
-        // 后端API会自动从错题本获取标签
+        console.log("没有发现明确的弱项，从错题本中获取课程");
+        // 后端API会自动从错题本获取课程
       }
 
       const apiEndpoint = ensureCorrectApiUrl(API_URL, '/llm/recommend-questions');
@@ -1362,7 +1362,7 @@ export default function StudentProgressPage() {
       const response = await axios.post(
         apiEndpoint,
         { 
-          weakTopics: currentStats.weakTopics || [], // 即使为空也发送请求，后端会从错题本获取标签
+          weakTopics: currentStats.weakTopics || [], // 即使为空也发送请求，后端会从错题本获取课程
           forceUpdate: forceUpdate // 告诉后端是否需要强制更新
         }, 
         { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }

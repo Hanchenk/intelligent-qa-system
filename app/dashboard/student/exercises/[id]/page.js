@@ -59,18 +59,17 @@ const ensureCorrectApiUrl = (url, endpoint) => {
   // 移除URL尾部的斜杠
   let baseUrl = url.replace(/\/+$/, '');
   
-  // 如果URL已经包含/api且endpoint不是以/api开头
-  if (baseUrl.endsWith('/api') && !endpoint.startsWith('/api')) {
-    return `${baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+  // 确保endpoint以/开头
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : '/' + endpoint;
+  
+  // 添加/api前缀如果endpoint不是以/api开头
+  if (!cleanEndpoint.startsWith('/api/')) {
+    // 构建正确的API路径 baseUrl + /api + endpoint
+    return `${baseUrl}/api${cleanEndpoint}`;
   }
   
-  // 如果URL不包含/api且endpoint不是以/api开头
-  if (!baseUrl.endsWith('/api') && !endpoint.startsWith('/api')) {
-    return `${baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
-  }
-  
-  // 其他情况
-  return `${baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+  // 如果endpoint已经包含/api前缀，直接连接
+  return `${baseUrl}${cleanEndpoint}`;
 };
 
 export default function ExercisePage({ params }) {

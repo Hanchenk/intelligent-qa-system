@@ -28,16 +28,16 @@ import TeacherNavBar from '../../components/TeacherNavBar';
 // 调整API路径格式
 const ensureCorrectApiUrl = (url) => {
   // 检查API URL是否正确包含/api前缀
-  if (!url) return 'http://localhost:3001/api';
+  if (!url) return 'http://localhost:3001';
   
   console.log('检查API URL:', url);
   
-  // 返回原始URL，假设它已经正确配置
-  return url;
+  // 移除末尾的斜杠
+  return url.replace(/\/+$/, '');
 };
 
-// 定义API路径常量
-const API_URL = ensureCorrectApiUrl(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api');
+// 基础API URL, 不包含/api
+const API_URL = ensureCorrectApiUrl(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001');
 console.log('使用API URL:', API_URL);
 
 export default function DiscussionDetailPage({ params }) {
@@ -81,11 +81,11 @@ export default function DiscussionDetailPage({ params }) {
       }
       
       console.log('Fetching discussion with ID:', id);
-      console.log('API URL:', `${API_URL}/discussions/${id}`);
+      console.log('API URL:', `${API_URL}/api/discussions/${id}`);
       
       try {
         // 添加超时和错误处理选项，确保正确的API路径
-        const response = await axios.get(`${API_URL}/discussions/${id}`, {
+        const response = await axios.get(`${API_URL}/api/discussions/${id}`, {
           headers: { Authorization: `Bearer ${token}` },
           timeout: 10000, // 10秒超时
           validateStatus: function (status) {
@@ -139,7 +139,7 @@ export default function DiscussionDetailPage({ params }) {
           role: user?.role || 'student',
           avatar: null
         },
-        tags: ['示例标签'],
+        tags: ['示例课程'],
         questionId: null,
         questionTitle: null
       });
@@ -173,7 +173,7 @@ export default function DiscussionDetailPage({ params }) {
       const token = localStorage.getItem('token');
       console.log('Submitting reply to discussion:', discussionId);
       
-      const response = await axios.post(`${API_URL}/discussions/${discussionId}/replies`, 
+      const response = await axios.post(`${API_URL}/api/discussions/${discussionId}/replies`, 
         { content: replyContent },
         { 
           headers: { Authorization: `Bearer ${token}` },

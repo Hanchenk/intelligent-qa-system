@@ -40,6 +40,15 @@ app.get('/', (req, res) => {
   res.send('课程习题网站API服务已启动');
 });
 
+// 添加健康检查/ping端点
+app.get('/api/ping', (req, res) => {
+  res.status(200).json({ 
+    success: true, 
+    message: 'API服务正常', 
+    timestamp: new Date().toISOString() 
+  });
+});
+
 // 启动服务器
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

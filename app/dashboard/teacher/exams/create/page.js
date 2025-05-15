@@ -65,7 +65,7 @@ export default function CreateExamPage() {
   const [selectedDifficulties, setSelectedDifficulties] = useState([]);
   const [selectedTags, setSelectedTags] = useState([]);
   
-  // 准备默认的模拟标签数据
+  // 准备默认的模拟课程数据
   const defaultTags = [
     { _id: 't1', name: 'JavaScript', color: '#F0DB4F' },
     { _id: 't2', name: 'React', color: '#61DAFB' },
@@ -163,14 +163,14 @@ export default function CreateExamPage() {
     }
   };
   
-  // 获取标签列表
+  // 获取课程列表
   const fetchTags = async () => {
     try {
       console.log('正在请求API:', `${API_URL}/tags`);
       const response = await axios.get(`${API_URL}/tags`, {
         headers: { Authorization: `Bearer ${effectiveToken}` }
       });
-      console.log('获取到标签:', response.data);
+      console.log('获取到课程:', response.data);
       
       // 尝试不同的响应格式
       let tagsData = [];
@@ -187,34 +187,34 @@ export default function CreateExamPage() {
         }
       }
       
-      console.log('处理后的标签数据:', tagsData);
+      console.log('处理后的课程数据:', tagsData);
       
       if (tagsData && tagsData.length > 0) {
-        // 确保每个标签都有必要的属性
+        // 确保每个课程都有必要的属性
         const formattedTags = tagsData.map(tag => ({
           _id: tag._id || tag.id || `tag-${Math.random().toString(36).substr(2, 9)}`,
-          name: tag.name || '未命名标签',
+          name: tag.name || '未命名课程',
           color: tag.color || getRandomColor()
         }));
         
         setAvailableTags(formattedTags);
-        console.log('设置标签数据:', formattedTags);
+        console.log('设置课程数据:', formattedTags);
       } else {
-        // 使用默认标签
-        console.log('API返回的标签为空，使用默认标签');
+        // 使用默认课程
+        console.log('API返回的课程为空，使用默认课程');
         setAvailableTags(defaultTags);
       }
     } catch (error) {
-      console.error('获取标签失败:', error);
+      console.error('获取课程失败:', error);
       // 显示错误提示
       setSnackbar({
         open: true,
-        message: `获取标签失败: ${error.message}`,
+        message: `获取课程失败: ${error.message}`,
         severity: 'warning'
       });
       
-      // 使用模拟标签数据
-      console.log('使用默认标签');
+      // 使用模拟课程数据
+      console.log('使用默认课程');
       setAvailableTags(defaultTags);
     }
   };
@@ -764,26 +764,26 @@ export default function CreateExamPage() {
                       : []
                   }
                   onChange={(event, newValue) => {
-                    console.log('标签选择变更:', newValue);
+                    console.log('课程选择变更:', newValue);
                     if (Array.isArray(newValue)) {
                       const tagIds = newValue
                         .filter(tag => tag && tag._id)
                         .map(tag => tag._id);
                       setSelectedTags(tagIds);
-                      console.log('设置选中标签IDs:', tagIds);
+                      console.log('设置选中课程IDs:', tagIds);
                     }
                   }}
                   renderInput={(params) => (
                     <TextField
                       {...params}
-                      label="标签"
-                      placeholder="选择标签"
-                      helperText={availableTags.length === 0 ? "没有可用标签" : ""}
+                      label="课程"
+                      placeholder="选择课程"
+                      helperText={availableTags.length === 0 ? "没有可用课程" : ""}
                     />
                   )}
                   renderTags={(value, getTagProps) =>
                     Array.isArray(value) ? value.map((option, index) => {
-                      const tagName = option?.name || '未命名标签';
+                      const tagName = option?.name || '未命名课程';
                       const tagColor = option?.color || '#cccccc';
                       return (
                         <Chip
@@ -811,7 +811,7 @@ export default function CreateExamPage() {
                           borderRadius: 2
                         }}
                       ></div>
-                      {option.name || '未命名标签'}
+                      {option.name || '未命名课程'}
                     </li>
                   )}
                   isOptionEqualToValue={(option, value) => 

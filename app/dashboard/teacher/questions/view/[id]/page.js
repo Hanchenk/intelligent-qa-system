@@ -148,7 +148,7 @@ export default function ViewQuestionPage({ params }) {
     setSnackbar({ ...snackbar, open: false });
   };
   
-  // 渲染题目难度标签
+  // 渲染题目难度课程
   const renderDifficultyChip = (difficulty) => {
     let color = 'default';
     

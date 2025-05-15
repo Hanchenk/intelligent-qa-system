@@ -75,7 +75,7 @@ export default function EditExamPage() {
   const [selectedDifficulties, setSelectedDifficulties] = useState([]);
   const [selectedTags, setSelectedTags] = useState([]);
   
-  // 准备默认的模拟标签数据
+  // 准备默认的模拟课程数据
   const defaultTags = [
     { _id: 'tag1', name: '数学', color: '#2196F3' },
     { _id: 'tag2', name: '语文', color: '#F44336' },
@@ -249,9 +249,9 @@ export default function EditExamPage() {
     return questionsData;
   };
   
-  // 获取标签列表
+  // 获取课程列表
   const fetchTags = async () => {
-    console.log('正在获取标签列表');
+    console.log('正在获取课程列表');
     let tagsData = defaultTags;
     
     try {
@@ -270,7 +270,7 @@ export default function EditExamPage() {
       // 依次尝试不同的API端点
       for (const endpoint of tagEndpoints) {
         try {
-          console.log('尝试请求标签列表:', endpoint);
+          console.log('尝试请求课程列表:', endpoint);
           const response = await axios.get(endpoint, {
             headers: { 
               Authorization: `Bearer ${effectiveToken}`,
@@ -283,12 +283,12 @@ export default function EditExamPage() {
             if (Array.isArray(response.data)) {
               tagsData = response.data;
               isAnyEndpointSuccessful = true;
-              console.log(`成功从 ${endpoint} 获取 ${tagsData.length} 个标签`);
+              console.log(`成功从 ${endpoint} 获取 ${tagsData.length} 个课程`);
               break;
             } else if (response.data.data && Array.isArray(response.data.data)) {
               tagsData = response.data.data;
               isAnyEndpointSuccessful = true;
-              console.log(`成功从 ${endpoint} 获取 ${tagsData.length} 个标签`);
+              console.log(`成功从 ${endpoint} 获取 ${tagsData.length} 个课程`);
               break;
             }
           }
@@ -298,16 +298,16 @@ export default function EditExamPage() {
         }
       }
       
-      // 如果所有端点都失败，使用默认标签
+      // 如果所有端点都失败，使用默认课程
       if (!isAnyEndpointSuccessful) {
-        console.log('所有标签API端点请求失败，使用默认标签');
+        console.log('所有课程API端点请求失败，使用默认课程');
       }
     } catch (error) {
-      console.error('获取标签列表错误:', error);
-      console.log('使用默认标签');
+      console.error('获取课程列表错误:', error);
+      console.log('使用默认课程');
     }
     
-    // 设置标签数据
+    // 设置课程数据
     setAvailableTags(tagsData);
     
     return tagsData;
@@ -319,7 +319,7 @@ export default function EditExamPage() {
       setIsLoading(true);
       
       try {
-        // 获取题库和标签数据
+        // 获取题库和课程数据
         const [questionsData, tagsData] = await Promise.all([
           fetchQuestions(),
           fetchTags()
@@ -538,7 +538,7 @@ export default function EditExamPage() {
       filtered = filtered.filter(q => selectedDifficulties.includes(q.difficulty));
     }
     
-    // 按标签筛选
+    // 按课程筛选
     if (selectedTags.length > 0) {
       filtered = filtered.filter(q => 
         q.tags && q.tags.some(tag => 
@@ -1006,9 +1006,9 @@ export default function EditExamPage() {
                     </Select>
                   </FormControl>
                   
-                  {/* 标签筛选 */}
+                  {/* 课程筛选 */}
                   <FormControl fullWidth margin="normal">
-                    <InputLabel>标签</InputLabel>
+                    <InputLabel>课程</InputLabel>
                     <Select
                       multiple
                       value={selectedTags}

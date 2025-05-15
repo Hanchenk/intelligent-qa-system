@@ -13,7 +13,7 @@ const MDPreview = dynamic(
 
 /**
  * 为选项内容定制的Markdown预览组件
- * 会阻止内部渲染li标签，以避免嵌套问题
+ * 会阻止内部渲染li课程，以避免嵌套问题
  * 
  * @param {string} content - Markdown内容
  * @param {string} className - 额外的CSS类名
@@ -25,7 +25,7 @@ const OptionMarkdownPreview = ({ content, className = '', style = {} }) => {
     return null;
   }
   
-  // 自定义组件渲染器，防止渲染li标签
+  // 自定义组件渲染器，防止渲染li课程
   const components = {
     // 将li转换为span，防止嵌套问题
     li: ({ node, children, ...props }) => (

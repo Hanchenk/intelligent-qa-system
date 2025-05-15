@@ -23,7 +23,7 @@ router.get('/dashboard', protect, authorize('teacher'), async (req, res) => {
       // 获取教师创建的考试数量（假设Exam模型中有creator字段）
       // Exam.countDocuments({ creator: req.user.id }),
       
-      // 获取系统中所有标签的数量（标签通常是全局共享的）
+      // 获取系统中所有课程的数量（课程通常是全局共享的）
       Tag.countDocuments()
     ]);
     
@@ -153,7 +153,7 @@ router.get('/student-dashboard', protect, authorize('student'), async (req, res)
       ? Math.round((correctAnswers / totalAnswered) * 100) 
       : 0;
     
-    // 计算标签掌握情况（简单版本）
+    // 计算课程掌握情况（简单版本）
     const tagMastery = [];
     const tagMasteryMap = {};
     
@@ -168,7 +168,7 @@ router.get('/student-dashboard', protect, authorize('student'), async (req, res)
           if (question && question.tags) {
             const isCorrect = submission.isCorrect;
             
-            // 处理标签
+            // 处理课程
             for (const tag of question.tags) {
               const tagName = typeof tag === 'object' ? tag.name : tag;
               
@@ -227,9 +227,9 @@ router.get('/student-dashboard', protect, authorize('student'), async (req, res)
         totalQuestions,  // 系统中题目总数
         correctAnswers,  // 正确答题数
         averageScore,    // 平均分
-        tagMastery,      // 标签掌握情况
-        strongTopics,    // 强项标签
-        weakTopics,      // 弱项标签
+        tagMastery,      // 课程掌握情况
+        strongTopics,    // 强项课程
+        weakTopics,      // 弱项课程
         lastUpdated: now,
         isNewUser: false
       }
@@ -295,7 +295,7 @@ router.post('/update-progress', protect, async (req, res) => {
       ? (correctAnswers / totalAnswered) * 100 
       : 0;
       
-    // 处理标签掌握情况
+    // 处理课程掌握情况
     const tagMasteryMap = {};
     
     submissions.forEach(submission => {
@@ -303,11 +303,11 @@ router.post('/update-progress', protect, async (req, res) => {
         const isCorrect = submission.isCorrect;
         const tags = submission.question.tags;
         
-        // 确保标签是数组
+        // 确保课程是数组
         const tagList = Array.isArray(tags) ? tags : [tags];
         
         tagList.forEach(tagItem => {
-          // 处理标签对象或字符串
+          // 处理课程对象或字符串
           const tagName = typeof tagItem === 'object' ? 
             (tagItem.name || 'unknown') : tagItem;
           
@@ -329,7 +329,7 @@ router.post('/update-progress', protect, async (req, res) => {
       }
     });
     
-    // 计算标签掌握百分比
+    // 计算课程掌握百分比
     const tagMastery = Object.entries(tagMasteryMap).map(([tag, data]) => ({
       tag,
       correct: data.correct,
@@ -434,7 +434,7 @@ async function updateLearningProgressAsync(userId) {
       ? (correctAnswers / totalAnswered) * 100 
       : 0;
       
-    // 处理标签掌握情况
+    // 处理课程掌握情况
     const tagMasteryMap = {};
     
     submissions.forEach(submission => {
@@ -442,11 +442,11 @@ async function updateLearningProgressAsync(userId) {
         const isCorrect = submission.isCorrect;
         const tags = submission.question.tags;
         
-        // 确保标签是数组
+        // 确保课程是数组
         const tagList = Array.isArray(tags) ? tags : [tags];
         
         tagList.forEach(tagItem => {
-          // 处理标签对象或字符串
+          // 处理课程对象或字符串
           const tagName = typeof tagItem === 'object' ? 
             (tagItem.name || 'unknown') : tagItem;
           
@@ -468,7 +468,7 @@ async function updateLearningProgressAsync(userId) {
       }
     });
     
-    // 计算标签掌握百分比
+    // 计算课程掌握百分比
     const tagMastery = Object.entries(tagMasteryMap).map(([tag, data]) => ({
       tag,
       correct: data.correct,

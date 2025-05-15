@@ -191,11 +191,11 @@ export default function EditQuestionPage({ params }) {
     });
   };
   
-  // 添加新的标签处理函数
+  // 添加新的课程处理函数
   const handleTagsChange = (newTags) => {
     setQuestion({
       ...question,
-      tags: newTags // 新的标签对象数组
+      tags: newTags // 新的课程对象数组
     });
   };
   
@@ -364,7 +364,7 @@ export default function EditQuestionPage({ params }) {
           // 处理不同类型题目的数据格式
           let formattedQuestion = {
             ...foundQuestion,
-            // 不需要修改tags，因为API已经返回了完整的标签对象
+            // 不需要修改tags，因为API已经返回了完整的课程对象
           };
           
           // 针对判断题的特殊处理
@@ -720,18 +720,18 @@ export default function EditQuestionPage({ params }) {
                       />
                     </Box>
                     
-                    {/* 标签输入 */}
+                    {/* 课程输入 */}
                     <Box className="mt-6">
                       <Typography variant="subtitle1" className="mb-2 font-bold">
-                        标签
+                        课程
                       </Typography>
                       <TagSelector 
                         selectedTags={question.tags} 
                         onChange={handleTagsChange}
-                        placeholder="选择或搜索相关标签..."
+                        placeholder="选择或搜索相关课程..."
                       />
                       <FormHelperText>
-                        添加标签有助于对题目分类和查找
+                        添加课程有助于对题目分类和查找
                       </FormHelperText>
                     </Box>
                   </Box>

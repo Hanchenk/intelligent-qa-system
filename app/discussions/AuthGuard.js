@@ -27,7 +27,7 @@ export default function AuthGuard({ allowedRoles = ['student', 'teacher'], child
         // 从本地存储恢复认证状态
         dispatch(setCredentials({
           token,
-          user: { role, id: localStorage.getItem('userId') || 'local-user' }
+          user: { role, id: localStorage.getItem('userId') || '' }
         }));
         return true;
       }

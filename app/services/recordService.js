@@ -10,6 +10,12 @@ const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 const buildApiUrl = (endpoint) => {
   console.log('API基础URL:', apiBaseUrl);
   
+  // 检查endpoint是否为空
+  if (!endpoint) {
+    console.error('API endpoint为空');
+    return apiBaseUrl;
+  }
+  
   // 处理可能的重复/api路径问题
   let cleanEndpoint = endpoint;
   if (apiBaseUrl.endsWith('/api') && endpoint.startsWith('/api')) {
@@ -486,6 +492,14 @@ export const getMistakes = (userId) => {
  */
 export const getUserStatistics = async (userId) => {
   try {
+    // 检查userId是否有效
+    if (!userId) {
+      console.error('getUserStatistics: userId为空');
+      return null;
+    }
+    
+    console.log('开始获取用户统计数据, 用户ID:', userId);
+    
     // 检查localStorage中是否有缓存的统计数据（确保缓存数据在24小时内）
     const cachedStatsJson = localStorage.getItem(`qa_stats_${userId}`);
     if (cachedStatsJson) {
@@ -563,6 +577,9 @@ export const getUserStatistics = async (userId) => {
         }
         
         // 如果不是新用户，继续获取用户提交记录的详细数据
+        // 确保使用实际的用户ID，而不是'local-user'
+        console.log(`获取用户提交记录API: ${buildApiUrl(`/api/users/${userId}/submissions`)}`);
+        
         const submissionsResponse = await fetch(buildApiUrl(`/api/users/${userId}/submissions`), {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -572,7 +589,7 @@ export const getUserStatistics = async (userId) => {
         if (submissionsResponse.ok) {
           const submissionsResult = await submissionsResponse.json();
           if (submissionsResult.success && submissionsResult.submissions && submissionsResult.submissions.length > 0) {
-            // 处理提交记录，计算标签掌握情况
+            // 处理提交记录，计算课程掌握情况
             const submissions = submissionsResult.submissions;
             
             // 更新总体答题数据
@@ -595,7 +612,7 @@ export const getUserStatistics = async (userId) => {
               tags: submission.question?.tags?.map(tag => typeof tag === 'string' ? tag : tag.name) || []
             }));
             
-            // 处理标签掌握情况
+            // 处理课程掌握情况
             const tagMastery = {};
             const categoryStats = {};
             
@@ -617,13 +634,13 @@ export const getUserStatistics = async (userId) => {
                   categoryStats[category].totalScore += isCorrect ? 100 : 0;
                 }
                 
-                // 遍历题目标签
+                // 遍历题目课程
                 if (submission.question.tags) {
                   const tags = Array.isArray(submission.question.tags) ? 
                     submission.question.tags : [submission.question.tags];
                   
                   tags.forEach(tag => {
-                    // 确保标签是字符串
+                    // 确保课程是字符串
                     const tagName = typeof tag === 'object' ? tag.name : tag;
                     
                     if (!tagMastery[tagName]) {
@@ -660,7 +677,7 @@ export const getUserStatistics = async (userId) => {
             // 更新分类统计
             stats.exercisesByCategory = categoryStats;
             
-            // 计算标签掌握百分比
+            // 计算课程掌握百分比
             const tagMasteryWithPercentage = Object.entries(tagMastery).map(([tag, data]) => ({
               tag,
               correct: data.correct,
@@ -687,6 +704,15 @@ export const getUserStatistics = async (userId) => {
             stats.recentScores = stats.recentScores
               .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
               .slice(0, 10);
+          }
+        } else {
+          // 处理API错误响应
+          console.error(`获取用户提交记录失败: 状态码 ${submissionsResponse.status}`);
+          try {
+            const errorData = await submissionsResponse.json();
+            console.error('错误详情:', errorData);
+          } catch (e) {
+            console.error('无法解析错误响应');
           }
         }
       }
@@ -777,7 +803,7 @@ const calculateStatistics = (records, userId) => {
     // 统计主题正确率
     if (questions && Array.isArray(questions)) {
       questions.forEach((question, index) => {
-        // 获取题目的分类（可以从题目属性或者练习标签推断）
+        // 获取题目的分类（可以从题目属性或者练习课程推断）
         const topics = question.tags || tags;
         
         topics.forEach(topic => {

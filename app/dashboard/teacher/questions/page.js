@@ -75,13 +75,13 @@ export default function TeacherQuestionsPage() {
   const questionTypes = ['单选题', '多选题', '判断题', '填空题', '简答题', '编程题'];
   const difficultyLevels = ['简单', '中等', '困难'];
   
-  // 加载题目数据和标签数据
+  // 加载题目数据和课程数据
   useEffect(() => {
     fetchQuestions();
     fetchTags();
   }, [page, filterType, filterDifficulty, filterTags, searchTerm]);
   
-  // 获取所有标签
+  // 获取所有课程
   const fetchTags = async () => {
     if (!token) return;
     
@@ -96,7 +96,7 @@ export default function TeacherQuestionsPage() {
       
       setAvailableTags(tagsData);
     } catch (err) {
-      console.error('获取标签列表失败:', err);
+      console.error('获取课程列表失败:', err);
       // 初始化为空数组，避免后续过滤时出错
       setAvailableTags([]);
     }
@@ -165,7 +165,7 @@ export default function TeacherQuestionsPage() {
     setPage(1);
   };
   
-  // 处理标签筛选变更
+  // 处理课程筛选变更
   const handleTagsChange = (event, newValue) => {
     // 确保newValue是数组且每个元素都有_id属性
     if (Array.isArray(newValue)) {
@@ -210,7 +210,7 @@ export default function TeacherQuestionsPage() {
     }
   };
   
-  // 渲染题目难度标签
+  // 渲染题目难度课程
   const renderDifficultyChip = (difficulty) => {
     let color = 'default';
     
@@ -241,7 +241,7 @@ export default function TeacherQuestionsPage() {
     return displayTitle;
   };
   
-  // 渲染题目标签
+  // 渲染题目课程
   const renderTags = (question) => {
     if (!question.tags || question.tags.length === 0) return null;
     
@@ -306,7 +306,7 @@ export default function TeacherQuestionsPage() {
     },
     { 
       _id: '7', 
-      title: '请填写HTML中创建无序列表的标签：<__>...</__>', 
+      title: '请填写HTML中创建无序列表的课程：<__>...</__>', 
       type: '填空题', 
       difficulty: '简单',
       createdAt: new Date('2023-06-15')
@@ -533,8 +533,8 @@ export default function TeacherQuestionsPage() {
                         renderInput={(params) => (
                           <TextField
                             {...params}
-                            label="标签筛选"
-                            placeholder="选择标签"
+                            label="课程筛选"
+                            placeholder="选择课程"
                             variant="outlined"
                             size="small"
                           />
@@ -563,7 +563,7 @@ export default function TeacherQuestionsPage() {
                                   bgcolor: option.color || '#ccc' 
                                 }} 
                               />
-                              {option.name || '未命名标签'}
+                              {option.name || '未命名课程'}
                             </Box>
                           </li>
                         )}

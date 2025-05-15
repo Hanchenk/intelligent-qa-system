@@ -163,7 +163,7 @@ export default function TeacherDashboard() {
                   </div>
                 </div>
 
-                {/* 标签统计卡片 */}
+                {/* 课程统计卡片 */}
                 <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
                   <div className="p-5">
                     <div className="flex items-center">
@@ -174,7 +174,7 @@ export default function TeacherDashboard() {
                       </div>
                       <div className="ml-5 w-0 flex-1">
                         <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
-                          标签数量
+                          课程数量
                         </dt>
                         <dd>
                           <div className="text-lg font-medium text-gray-900 dark:text-white">
@@ -191,7 +191,7 @@ export default function TeacherDashboard() {
                   <div className="bg-gray-50 dark:bg-gray-700 px-5 py-3">
                     <div className="text-sm">
                       <Link href="/dashboard/teacher/tags" className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300">
-                        管理标签
+                        管理课程
                       </Link>
                     </div>
                   </div>
@@ -231,7 +231,7 @@ export default function TeacherDashboard() {
                       </svg>
                     </div>
                     <div className="ml-4">
-                      <h3 className="text-base font-medium text-gray-900 dark:text-white">管理标签</h3>
+                      <h3 className="text-base font-medium text-gray-900 dark:text-white">管理课程</h3>
                       <p className="text-sm text-gray-500 dark:text-gray-400">整理和分类您的题库</p>
                     </div>
                   </Link>

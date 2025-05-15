@@ -235,7 +235,7 @@ router.get('/:id/submissions', protect, async (req, res) => {
       });
     }
 
-    // 获取用户提交记录，包括题目标签信息
+    // 获取用户提交记录，包括题目课程信息
     const submissions = await Submission.find({ user: req.params.id })
       .populate({
         path: 'question',

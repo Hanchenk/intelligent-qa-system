@@ -32,20 +32,15 @@ import TeacherNavBar from '../../components/TeacherNavBar';
 // 调整API路径格式
 const ensureCorrectApiUrl = (url) => {
   // 检查API URL是否正确包含/api前缀
-  if (!url) return 'http://localhost:3001/api';
+  if (!url) return 'http://localhost:3001';
   
   console.log('检查API URL:', url);
   
-  // 如果URL已经包含/api，保持不变
-  if (url.endsWith('/api')) {
-    return url;
-  }
-  
-  // 否则添加/api
-  return `${url}/api`;
+  // 移除末尾的斜杠
+  return url.replace(/\/+$/, '');
 };
 
-// 检查API URL配置是否包含完整路径
+// 基础API URL, 不包含/api
 const API_URL = ensureCorrectApiUrl(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001');
 console.log('创建讨论页面 API URL:', API_URL);
 
@@ -68,7 +63,7 @@ export default function CreateDiscussionPage() {
   const checkApiEndpoint = () => {
     console.log('当前API端点:', API_URL);
     // 测试API连接
-    fetch(`${API_URL}/ping`)
+    fetch(`${API_URL}/api/ping`)
       .then(res => {
         console.log('API 连接测试响应状态:', res.status);
         return res.text();
@@ -83,7 +78,7 @@ export default function CreateDiscussionPage() {
     checkApiEndpoint();
   }, []);
   
-  // 获取题目和标签
+  // 获取题目和课程
   useEffect(() => {
     const fetchQuestionsAndTags = async () => {
       setLoading(true);
@@ -92,7 +87,7 @@ export default function CreateDiscussionPage() {
         
         // 获取题目
         try {
-          const questionsResponse = await axios.get(`${API_URL}/questions`, {
+          const questionsResponse = await axios.get(`${API_URL}/api/questions`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           
@@ -109,9 +104,9 @@ export default function CreateDiscussionPage() {
           ]);
         }
         
-        // 获取标签
+        // 获取课程
         try {
-          const tagsResponse = await axios.get(`${API_URL}/tags`, {
+          const tagsResponse = await axios.get(`${API_URL}/api/tags`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           
@@ -119,7 +114,7 @@ export default function CreateDiscussionPage() {
             setAvailableTags(tagsResponse.data.tags || []);
           }
         } catch (error) {
-          console.error('获取标签失败:', error);
+          console.error('获取课程失败:', error);
           // 设置测试数据
           setAvailableTags([
             { id: 1, name: '微积分' },
@@ -142,7 +137,7 @@ export default function CreateDiscussionPage() {
   
   const handleTabChange = (event, newValue) => {
     setSelectedTab(newValue);
-    // 切换标签时重置选择
+    // 切换课程时重置选择
     if (newValue === 0) {
       setSelectedTags([]);
     } else {
@@ -162,9 +157,9 @@ export default function CreateDiscussionPage() {
     const newErrors = {};
     if (!title.trim()) newErrors.title = '标题不能为空';
     if (!content.trim()) newErrors.content = '内容不能为空';
-    // 移除题目和标签的必选验证
+    // 移除题目和课程的必选验证
     // if (selectedTab === 0 && !selectedQuestion) newErrors.question = '请选择关联题目';
-    // if (selectedTab === 1 && selectedTags.length === 0) newErrors.tags = '请选择至少一个标签';
+    // if (selectedTab === 1 && selectedTags.length === 0) newErrors.tags = '请选择至少一个课程';
     
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -179,16 +174,16 @@ export default function CreateDiscussionPage() {
         content,
         questionId: selectedTab === 0 && selectedQuestion ? selectedQuestion.id : null,
         tags: selectedTab === 0 
-          ? (selectedQuestion ? [selectedQuestion.title] : ['未分类题目']) // 使用默认标签
-          : (selectedTags.length > 0 ? selectedTags : ['未分类课程']) // 使用默认标签
+          ? (selectedQuestion ? [selectedQuestion.title] : ['未分类题目']) // 使用默认课程
+          : (selectedTags.length > 0 ? selectedTags : ['未分类课程']) // 使用默认课程
       };
       
       console.log('Creating discussion with data:', discussionData);
-      console.log('Using API URL:', `${API_URL}/discussions`);
+      console.log('Using API URL:', `${API_URL}/api/discussions`);
       console.log('Authorization token available:', !!token);
       
       try {
-        const response = await axios.post(`${API_URL}/discussions`, discussionData, {
+        const response = await axios.post(`${API_URL}/api/discussions`, discussionData, {
           headers: { Authorization: `Bearer ${token}` },
           timeout: 10000
         });
@@ -324,7 +319,7 @@ export default function CreateDiscussionPage() {
                   )}
                 </div>
               ) : (
-                // 课程/标签选择
+                // 课程/课程选择
                 <div className="mb-4">
                   <Autocomplete
                     multiple
@@ -345,10 +340,10 @@ export default function CreateDiscussionPage() {
                     renderInput={(params) => (
                       <TextField
                         {...params}
-                        label="选择或添加标签 (可选)"
+                        label="选择或添加课程 (可选)"
                         variant="outlined"
                         error={!!errors.tags}
-                        helperText={errors.tags || "可以选择已有标签或输入新标签后按回车添加"}
+                        helperText={errors.tags || "可以选择已有课程或输入新课程后按回车添加"}
                         onKeyDown={(event) => {
                           if (event.key === 'Enter' && customTag.trim()) {
                             event.preventDefault();
@@ -369,18 +364,18 @@ export default function CreateDiscussionPage() {
                   />
                   {availableTags.length === 0 && !loading && (
                     <FormHelperText>
-                      未找到可用标签，您可以直接输入新标签并按回车添加
+                      未找到可用课程，您可以直接输入新课程并按回车添加
                     </FormHelperText>
                   )}
                   {selectedTags.length > 0 && (
                     <FormHelperText>
-                      已选择 {selectedTags.length} 个标签
+                      已选择 {selectedTags.length} 个课程
                     </FormHelperText>
                   )}
                   {loading && (
                     <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
                       <CircularProgress size={20} sx={{ mr: 1 }} />
-                      <FormHelperText>正在加载标签...</FormHelperText>
+                      <FormHelperText>正在加载课程...</FormHelperText>
                     </Box>
                   )}
                 </div>
