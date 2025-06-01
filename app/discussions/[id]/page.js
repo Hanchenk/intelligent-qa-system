@@ -81,11 +81,11 @@ export default function DiscussionDetailPage({ params }) {
       }
       
       console.log('Fetching discussion with ID:', id);
-      console.log('API URL:', `${API_URL}/api/discussions/${id}`);
+      console.log('API URL:', `${API_URL}/discussions/${id}`);
       
       try {
         // 添加超时和错误处理选项，确保正确的API路径
-        const response = await axios.get(`${API_URL}/api/discussions/${id}`, {
+        const response = await axios.get(`${API_URL}/discussions/${id}`, {
           headers: { Authorization: `Bearer ${token}` },
           timeout: 10000, // 10秒超时
           validateStatus: function (status) {
@@ -173,7 +173,7 @@ export default function DiscussionDetailPage({ params }) {
       const token = localStorage.getItem('token');
       console.log('Submitting reply to discussion:', discussionId);
       
-      const response = await axios.post(`${API_URL}/api/discussions/${discussionId}/replies`, 
+      const response = await axios.post(`${API_URL}/discussions/${discussionId}/replies`, 
         { content: replyContent },
         { 
           headers: { Authorization: `Bearer ${token}` },

@@ -44,10 +44,10 @@ export default function DiscussionsPage() {
     
     try {
       const token = localStorage.getItem('token');
-      console.log('获取讨论列表: 请求API', `${API_URL}/api/discussions`);
+      console.log('获取讨论列表: 请求API', `${API_URL}/discussions`);
       
       // 添加超时处理
-      const response = await axios.get(`${API_URL}/api/discussions`, {
+      const response = await axios.get(`${API_URL}/discussions`, {
         headers: { Authorization: `Bearer ${token}` },
         timeout: 10000, // 10秒超时
         validateStatus: function (status) {
