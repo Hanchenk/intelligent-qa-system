@@ -87,15 +87,26 @@ export default function CreateDiscussionPage() {
         
         // 获取题目
         try {
+          console.log('开始获取题目数据');
           const questionsResponse = await axios.get(`${API_URL}/questions`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           
+          console.log('题目数据响应:', questionsResponse.data);
+          
           if (questionsResponse.data.success) {
-            setQuestions(questionsResponse.data.questions || []);
+            setQuestions(questionsResponse.data.data || []);
+          } else {
+            console.warn('获取题目成功但返回错误:', questionsResponse.data.message);
+            // 设置测试数据
+            setQuestions([
+              { id: 1, title: '计算积分 ∫(x²+1)dx' },
+              { id: 2, title: '计算极限 lim(x→0) sin(x)/x' },
+              { id: 3, title: '解方程 x² + 3x - 4 = 0' }
+            ]);
           }
         } catch (error) {
-          console.error('获取题目失败:', error);
+          console.error('获取题目失败:', error.response?.data || error.message);
           // 设置测试数据
           setQuestions([
             { id: 1, title: '计算积分 ∫(x²+1)dx' },
@@ -106,15 +117,29 @@ export default function CreateDiscussionPage() {
         
         // 获取课程
         try {
+          console.log('开始获取课程数据');
           const tagsResponse = await axios.get(`${API_URL}/tags`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           
+          console.log('课程数据响应:', tagsResponse.data);
+          
           if (tagsResponse.data.success) {
-            setAvailableTags(tagsResponse.data.tags || []);
+            setAvailableTags(tagsResponse.data.data || []);
+          } else {
+            console.warn('获取课程成功但返回错误:', tagsResponse.data.message);
+            // 设置测试数据
+            setAvailableTags([
+              { id: 1, name: '微积分' },
+              { id: 2, name: '代数' },
+              { id: 3, name: '几何' },
+              { id: 4, name: '离散数学' },
+              { id: 5, name: '数据结构' },
+              { id: 6, name: '算法' }
+            ]);
           }
         } catch (error) {
-          console.error('获取课程失败:', error);
+          console.error('获取课程失败:', error.response?.data || error.message);
           // 设置测试数据
           setAvailableTags([
             { id: 1, name: '微积分' },
@@ -172,18 +197,18 @@ export default function CreateDiscussionPage() {
       const discussionData = {
         title,
         content,
-        questionId: selectedTab === 0 && selectedQuestion ? selectedQuestion.id : null,
+        questionId: selectedTab === 0 && selectedQuestion ? selectedQuestion._id || selectedQuestion.id : null,
         tags: selectedTab === 0 
           ? (selectedQuestion ? [selectedQuestion.title] : ['未分类题目']) // 使用默认课程
           : (selectedTags.length > 0 ? selectedTags : ['未分类课程']) // 使用默认课程
       };
       
       console.log('Creating discussion with data:', discussionData);
-      console.log('Using API URL:', `${API_URL}/discussions`);
+      console.log('Using API URL:', `${API_URL}/api/discussions`);
       console.log('Authorization token available:', !!token);
       
       try {
-        const response = await axios.post(`${API_URL}/discussions`, discussionData, {
+        const response = await axios.post(`${API_URL}/api/discussions`, discussionData, {
           headers: { Authorization: `Bearer ${token}` },
           timeout: 10000
         });
@@ -323,7 +348,7 @@ export default function CreateDiscussionPage() {
                 <div className="mb-4">
                   <Autocomplete
                     multiple
-                    options={availableTags.map(tag => tag.name)}
+                    options={availableTags.map(tag => tag.name || tag)}
                     value={selectedTags}
                     onChange={(event, newValue) => setSelectedTags(newValue)}
                     freeSolo
