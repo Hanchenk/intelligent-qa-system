@@ -19,7 +19,7 @@ const TagSelector = ({ selectedTags = [], onChange, placeholder = "选择或搜�
   const fetchTags = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API_URL}/api/tags`, {
+      const res = await axios.get(`${API_URL}/tags`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }
