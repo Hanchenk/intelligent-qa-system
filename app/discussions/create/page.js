@@ -204,11 +204,11 @@ export default function CreateDiscussionPage() {
       };
       
       console.log('Creating discussion with data:', discussionData);
-      console.log('Using API URL:', `${API_URL}/api/discussions`);
+      console.log('Using API URL:', `${API_URL}/discussions`);
       console.log('Authorization token available:', !!token);
       
       try {
-        const response = await axios.post(`${API_URL}/api/discussions`, discussionData, {
+        const response = await axios.post(`${API_URL}/discussions`, discussionData, {
           headers: { Authorization: `Bearer ${token}` },
           timeout: 10000
         });
