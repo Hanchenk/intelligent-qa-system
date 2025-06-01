@@ -13,7 +13,7 @@ export const getUserBookmarks = async () => {
       throw new Error('未授权，请先登录');
     }
 
-    const response = await axios.get(`${API_URL}/api/bookmarks`, {
+    const response = await axios.get(`${API_URL}/bookmarks`, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -41,7 +41,7 @@ export const createBookmark = async (bookmarkData) => {
       throw new Error('未授权，请先登录');
     }
 
-    const response = await axios.post(`${API_URL}/api/bookmarks`, bookmarkData, {
+    const response = await axios.post(`${API_URL}/bookmarks`, bookmarkData, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -66,7 +66,7 @@ export const deleteBookmark = async (bookmarkId) => {
       throw new Error('未授权，请先登录');
     }
 
-    const response = await axios.delete(`${API_URL}/api/bookmarks/${bookmarkId}`, {
+    const response = await axios.delete(`${API_URL}/bookmarks/${bookmarkId}`, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -91,7 +91,7 @@ export const deleteBookmarkByExerciseId = async (exerciseId) => {
       throw new Error('未授权，请先登录');
     }
 
-    const response = await axios.delete(`${API_URL}/api/bookmarks/exercise/${exerciseId}`, {
+    const response = await axios.delete(`${API_URL}/bookmarks/exercise/${exerciseId}`, {
       headers: {
         Authorization: `Bearer ${token}`
       }

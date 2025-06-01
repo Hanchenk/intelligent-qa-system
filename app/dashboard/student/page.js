@@ -44,7 +44,7 @@ export default function StudentDashboard() {
         }
 
         // 确保API URL正确构建
-        let apiEndpoint = `${API_URL}/api/stats/student-dashboard`;
+        let apiEndpoint = `${API_URL}/stats/student-dashboard`;
         console.log('请求统计数据API:', apiEndpoint);
 
         const response = await axios.get(apiEndpoint, {

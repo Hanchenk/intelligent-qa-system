@@ -16,9 +16,9 @@ const buildApiUrl = (endpoint) => {
     return apiBaseUrl;
   }
   
-  // 处理可能的重复/api路径问题
+  // 移除endpoint中的/api前缀
   let cleanEndpoint = endpoint;
-  if (apiBaseUrl.endsWith('/api') && endpoint.startsWith('/api')) {
+  if (endpoint.startsWith('/api/')) {
     cleanEndpoint = endpoint.replace(/^\/api/, '');
   }
   

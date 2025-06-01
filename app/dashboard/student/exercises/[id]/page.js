@@ -62,13 +62,7 @@ const ensureCorrectApiUrl = (url, endpoint) => {
   // 确保endpoint以/开头
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : '/' + endpoint;
   
-  // 添加/api前缀如果endpoint不是以/api开头
-  if (!cleanEndpoint.startsWith('/api/')) {
-    // 构建正确的API路径 baseUrl + /api + endpoint
-    return `${baseUrl}/api${cleanEndpoint}`;
-  }
-  
-  // 如果endpoint已经包含/api前缀，直接连接
+  // 直接返回baseUrl + endpoint，不添加/api前缀
   return `${baseUrl}${cleanEndpoint}`;
 };
 
