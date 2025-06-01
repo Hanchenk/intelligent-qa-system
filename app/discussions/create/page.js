@@ -63,7 +63,7 @@ export default function CreateDiscussionPage() {
   const checkApiEndpoint = () => {
     console.log('当前API端点:', API_URL);
     // 测试API连接
-    fetch(`${API_URL}/api/ping`)
+    fetch(`${API_URL}/ping`)
       .then(res => {
         console.log('API 连接测试响应状态:', res.status);
         return res.text();
@@ -87,7 +87,7 @@ export default function CreateDiscussionPage() {
         
         // 获取题目
         try {
-          const questionsResponse = await axios.get(`${API_URL}/api/questions`, {
+          const questionsResponse = await axios.get(`${API_URL}/questions`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           
@@ -106,7 +106,7 @@ export default function CreateDiscussionPage() {
         
         // 获取课程
         try {
-          const tagsResponse = await axios.get(`${API_URL}/api/tags`, {
+          const tagsResponse = await axios.get(`${API_URL}/tags`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           
@@ -179,11 +179,11 @@ export default function CreateDiscussionPage() {
       };
       
       console.log('Creating discussion with data:', discussionData);
-      console.log('Using API URL:', `${API_URL}/api/discussions`);
+      console.log('Using API URL:', `${API_URL}/discussions`);
       console.log('Authorization token available:', !!token);
       
       try {
-        const response = await axios.post(`${API_URL}/api/discussions`, discussionData, {
+        const response = await axios.post(`${API_URL}/discussions`, discussionData, {
           headers: { Authorization: `Bearer ${token}` },
           timeout: 10000
         });

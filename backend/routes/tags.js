@@ -204,7 +204,7 @@ router.delete('/:id', protect, authorize('teacher'), async (req, res) => {
     }
 
     // 检查课程是否在使用中
-    const questionCount = await Question.countDocuments({ tags: tag.name });
+    const questionCount = await Question.countDocuments({ tags: req.params.id });
     if (questionCount > 0) {
       return res.status(400).json({
         success: false,
