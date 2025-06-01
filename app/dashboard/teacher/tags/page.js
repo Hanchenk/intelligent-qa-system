@@ -11,9 +11,10 @@ import AuthGuard from '../../../components/AuthGuard';
 import TeacherNavBar from '../../../components/TeacherNavBar';
 import TagItem from '../../../components/tags/TagItem';
 import TagForm from '../../../components/tags/TagForm';
+import DeleteIcon from '@mui/icons-material/Delete';
 
 // 确保API URL可用
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 const TagsPage = () => {
   const [loading, setLoading] = useState(true);

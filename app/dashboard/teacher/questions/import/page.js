@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSelector } from 'react-redux';
 import Link from 'next/link';
@@ -40,7 +40,8 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import SaveIcon from '@mui/icons-material/Save';
 
-const API_URL = 'http://localhost:3001/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+console.log('使用API基础URL:', API_URL);
 
 export default function ImportQuestionsPage() {
   const router = useRouter();
@@ -212,10 +213,52 @@ export default function ImportQuestionsPage() {
     let failedCount = 0;
     
     try {
+      // 先获取所有标签数据，用于将标签名称转换为ID
+      let tagsMap = {};
+      try {
+        const tagsResponse = await axios.get(`${API_URL}/tags`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        if (tagsResponse.data && tagsResponse.data.data) {
+          // 创建标签名称到ID的映射
+          tagsMap = tagsResponse.data.data.reduce((map, tag) => {
+            map[tag.name.toLowerCase()] = tag._id;
+            return map;
+          }, {});
+        }
+      } catch (err) {
+        console.error('获取标签数据失败:', err);
+      }
+      
       // 逐个提交题目
       for (const question of parsedQuestions) {
         try {
-          await axios.post(`${API_URL}/questions`, question, {
+          // 处理标签：将标签名称转换为ID
+          const processedQuestion = { ...question };
+          
+          if (Array.isArray(processedQuestion.tags)) {
+            // 过滤掉未找到的标签
+            const tagIds = processedQuestion.tags
+              .map(tagName => {
+                // 如果已经是有效的MongoDB ID格式，则直接使用
+                if (/^[0-9a-fA-F]{24}$/.test(tagName)) {
+                  return tagName;
+                }
+                
+                // 否则尝试通过名称查找ID
+                const tagId = tagsMap[tagName.toLowerCase()];
+                if (!tagId) {
+                  console.warn(`未找到标签: ${tagName}`);
+                }
+                return tagId;
+              })
+              .filter(id => id); // 过滤掉undefined
+            
+            processedQuestion.tags = tagIds;
+          }
+          
+          await axios.post(`${API_URL}/questions`, processedQuestion, {
             headers: { Authorization: `Bearer ${token}` }
           });
           successCount++;
@@ -392,6 +435,13 @@ export default function ImportQuestionsPage() {
       <Typography variant="body2" className="mb-4">
         以下{parsedQuestions.length}道题目将被导入到题库中，请确认无误后点击"确认导入"按钮。
       </Typography>
+      
+      <Alert severity="info" className="mb-4">
+        <Typography variant="body2">
+          <strong>关于标签:</strong> 如果您在JSON中使用了标签名称（而非ID），系统将尝试自动匹配现有标签。
+          未找到的标签将被忽略。如需使用特定标签，请先在标签管理中创建。
+        </Typography>
+      </Alert>
       
       <TableContainer component={Paper} className="mb-4 border">
         <Table>

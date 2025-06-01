@@ -30,7 +30,8 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 
-const API_URL = 'http://localhost:3001/api';
+// API URL
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 export default function ViewQuestionPage({ params }) {
   const router = useRouter();
