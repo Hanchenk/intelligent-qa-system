@@ -6,7 +6,7 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-white dark:bg-gray-900 p-4">
       <h1 className="text-4xl font-bold text-center mb-8 text-gray-900 dark:text-white">
-        基于大语言模型的课程习题网站的设计与实现
+        基于大语言模型的课程习题网站
       </h1>
       <p className="text-lg text-center mb-12 text-gray-600 dark:text-gray-300 max-w-2xl">
         基于大语言模型的智能学习平台，为您提供个性化学习体验
