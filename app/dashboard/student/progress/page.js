@@ -68,6 +68,7 @@ import HistoryIcon from '@mui/icons-material/History';
 import FitnessCenterIcon from '@mui/icons-material/FitnessCenter';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import FlagIcon from '@mui/icons-material/Flag';
 
 // 动态导入 recharts 组件，并禁用 SSR
 const LineChart = dynamic(() => import('recharts').then(mod => mod.LineChart), { ssr: false });
@@ -108,6 +109,7 @@ export default function StudentProgressPage() {
   const [statsError, setStatsError] = useState(null);
   const [userStats, setUserStats] = useState(null);
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const [markedQuestions, setMarkedQuestions] = useState([]);
 
   // --- 新增状态 ---
   const [reportLoading, setReportLoading] = useState(false);
@@ -120,11 +122,67 @@ export default function StudentProgressPage() {
   const [recommendationsError, setRecommendationsError] = useState(null);
 
   const [recentRecords, setRecentRecords] = useState([]); // 用于图表
+  
+  // 加载用户标记的题目
+  const loadMarkedQuestions = async () => {
+    try {
+      // 从本地存储获取已标记的题目
+      const markedQuestionsStorage = JSON.parse(localStorage.getItem('markedQuestions') || '{}');
+      
+      // 过滤出已标记的题目ID
+      const markedIds = Object.entries(markedQuestionsStorage)
+        .filter(([_, isMarked]) => isMarked)
+        .map(([id]) => id);
+      
+      if (markedIds.length === 0) {
+        setMarkedQuestions([]);
+        return;
+      }
+      
+      // 获取已标记题目的详细信息
+      const markedQuestionsWithDetails = [];
+      
+      for (const questionId of markedIds) {
+        try {
+          // 获取题目详情
+          const response = await axios.get(ensureCorrectApiUrl(API_URL, `/questions/${questionId}`), {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          
+          const questionData = response.data.data;
+          
+          // 获取题目所属的练习ID
+          // 这里假设每道题可能属于多个练习，我们取第一个
+          let exerciseId = '';
+          if (questionData.exercises && questionData.exercises.length > 0) {
+            exerciseId = questionData.exercises[0]._id || questionData.exercises[0].id || '';
+          }
+          
+          markedQuestionsWithDetails.push({
+            id: questionId,
+            title: questionData.title,
+            type: questionData.type,
+            tags: questionData.tags?.map(t => t.name) || [],
+            exerciseId,
+            timestamp: new Date().toISOString() // 由于本地存储没有时间戳，使用当前时间
+          });
+        } catch (error) {
+          console.error(`获取题目 ${questionId} 详情失败:`, error);
+        }
+      }
+      
+      setMarkedQuestions(markedQuestionsWithDetails);
+    } catch (error) {
+      console.error('获取标记题目失败:', error);
+      setMarkedQuestions([]);
+    }
+  };
 
   useEffect(() => {
     if (user && user.id) {
       loadUserStats();
       loadUserBookmarks();
+      loadMarkedQuestions();
     } else {
       // 如果用户未登录，加载模拟数据
       loadMockData();
@@ -1051,8 +1109,18 @@ export default function StudentProgressPage() {
                               color="primary"
                               size="small"
                               onClick={() => router.push(`/dashboard/student/exercises/${bookmark.exerciseId}`)}
+                              sx={{ mr: 1 }}
                             >
                               重做
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              color="secondary"
+                              size="small"
+                              startIcon={<BookmarkIcon />}
+                              onClick={() => router.push(`/dashboard/student/exercises/${bookmark.exerciseId}?markedOnly=true`)}
+                            >
+                              查看标记题目
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -1063,6 +1131,72 @@ export default function StudentProgressPage() {
               ) : (
                 <Typography color="text.secondary" align="center" className="py-4">
                   暂无收藏练习
+                </Typography>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+        
+        {/* 标记题目 */}
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                <FlagIcon className="mr-1" />
+                标记题目
+              </Typography>
+              
+              {markedQuestions.length > 0 ? (
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>题目</TableCell>
+                        <TableCell align="center">题型</TableCell>
+                        <TableCell align="center">知识点</TableCell>
+                        <TableCell align="right">操作</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {markedQuestions.map((question, index) => (
+                        <TableRow key={index}>
+                          <TableCell>
+                            <Typography variant="body2" noWrap sx={{ maxWidth: 300 }}>
+                              {question.title?.substring(0, 50) || '未知题目'}
+                              {question.title?.length > 50 ? '...' : ''}
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="center">{question.type || '未知'}</TableCell>
+                          <TableCell align="center">
+                            <Box display="flex" flexWrap="wrap" justifyContent="center" gap={0.5}>
+                              {question.tags && question.tags.slice(0, 2).map((tag, i) => (
+                                <Chip key={i} label={tag} size="small" variant="outlined" />
+                              ))}
+                              {question.tags && question.tags.length > 2 && (
+                                <MuiTooltip title={question.tags.slice(2).join(', ')} arrow>
+                                  <Chip label={`+${question.tags.length - 2}`} size="small" variant="outlined" />
+                                </MuiTooltip>
+                              )}
+                            </Box>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Button
+                              variant="text"
+                              color="primary"
+                              size="small"
+                              onClick={() => router.push(`/dashboard/student/exercises/${question.exerciseId}`)}
+                            >
+                              查看题目
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              ) : (
+                <Typography color="text.secondary" align="center" className="py-4">
+                  暂无标记题目
                 </Typography>
               )}
             </CardContent>

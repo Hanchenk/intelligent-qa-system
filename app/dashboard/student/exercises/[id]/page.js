@@ -9,6 +9,7 @@ import AuthGuard from '../../../../components/AuthGuard';
 import MarkdownPreview from '@/app/components/MarkdownPreview';
 import OptionMarkdownPreview from '@/app/components/OptionMarkdownPreview';
 import axios from 'axios';
+import { createBookmark, deleteBookmarkByExerciseId, getUserBookmarks } from '@/app/services/bookmarkService';
 
 // Material UI 组件
 import {
@@ -39,7 +40,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogContentText,
-  DialogActions
+  DialogActions,
+  Chip
 } from '@mui/material';
 
 // Material Icons
@@ -72,6 +74,9 @@ export default function ExercisePage({ params }) {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   const exerciseId = use(params).id;
   
+  // 获取URL参数，检查是否只显示标记的题目
+  const [markedOnly, setMarkedOnly] = useState(false);
+  
   // 状态
   const [loading, setLoading] = useState(true);
   const [exercise, setExercise] = useState(null);
@@ -83,6 +88,18 @@ export default function ExercisePage({ params }) {
   const [remainingTime, setRemainingTime] = useState(null);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationStatus, setEvaluationStatus] = useState({ current: 0, total: 0, message: '' });
+  const [markedQuestions, setMarkedQuestions] = useState({});
+  const [isExerciseBookmarked, setIsExerciseBookmarked] = useState(false);
+  const [allQuestions, setAllQuestions] = useState([]);
+  
+  // 检查URL参数
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const markedOnlyParam = urlParams.get('markedOnly');
+      setMarkedOnly(markedOnlyParam === 'true');
+    }
+  }, []);
   
   // 载入练习数据之前，检查API_URL格式
   useEffect(() => {
@@ -172,7 +189,25 @@ export default function ExercisePage({ params }) {
           return;
         }
         
-        setQuestions(fetchedQuestions);
+        // 保存所有题目
+        setAllQuestions(fetchedQuestions);
+        
+        // 加载标记状态
+        const markedQuestionsStorage = JSON.parse(localStorage.getItem('markedQuestions') || '{}');
+        setMarkedQuestions(markedQuestionsStorage);
+        
+        // 根据markedOnly参数过滤题目
+        if (markedOnly) {
+          const filteredQuestions = fetchedQuestions.filter(q => markedQuestionsStorage[q.id]);
+          if (filteredQuestions.length === 0) {
+            alert('没有标记的题目，将显示所有题目');
+            setQuestions(fetchedQuestions);
+          } else {
+            setQuestions(filteredQuestions);
+          }
+        } else {
+          setQuestions(fetchedQuestions);
+        }
         
         // 初始化用户答案对象
         const initialAnswers = {};
@@ -212,7 +247,7 @@ export default function ExercisePage({ params }) {
     if (exerciseId) {
       fetchExercise();
     }
-  }, [exerciseId, router, token]);
+  }, [exerciseId, router, token, markedOnly]);
   
   // 倒计时
   useEffect(() => {
@@ -506,6 +541,105 @@ export default function ExercisePage({ params }) {
     return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
   
+  // 检查练习是否已收藏
+  useEffect(() => {
+    const checkBookmarkStatus = async () => {
+      if (!user || !exerciseId) return;
+      
+      try {
+        const bookmarks = await getUserBookmarks();
+        const isBookmarked = bookmarks.some(bookmark => bookmark.exerciseId === exerciseId);
+        setIsExerciseBookmarked(isBookmarked);
+      } catch (error) {
+        console.error('检查收藏状态失败:', error);
+      }
+    };
+    
+    checkBookmarkStatus();
+  }, [user, exerciseId]);
+  
+  // 标记题目
+  const handleMarkQuestion = async () => {
+    if (!user || !currentQuestion) return;
+    
+    try {
+      // 更新本地状态
+      const currentId = currentQuestion.id;
+      const newMarkedState = !markedQuestions[currentId];
+      
+      const updatedMarkedQuestions = {
+        ...markedQuestions,
+        [currentId]: newMarkedState
+      };
+      
+      setMarkedQuestions(updatedMarkedQuestions);
+      
+      // 在本地存储中保存标记状态
+      localStorage.setItem('markedQuestions', JSON.stringify(updatedMarkedQuestions));
+      
+      // 如果是只显示标记题目模式，并且取消标记了当前题目，则需要从列表中移除
+      if (markedOnly && !newMarkedState) {
+        const updatedQuestions = questions.filter(q => q.id !== currentId);
+        if (updatedQuestions.length === 0) {
+          // 如果没有标记的题目了，显示提示并加载所有题目
+          alert('没有更多标记的题目，将显示所有题目');
+          setQuestions(allQuestions);
+          setMarkedOnly(false);
+        } else {
+          setQuestions(updatedQuestions);
+          // 如果当前是最后一题，需要调整索引
+          if (currentQuestionIndex >= updatedQuestions.length) {
+            setCurrentQuestionIndex(updatedQuestions.length - 1);
+          }
+        }
+      }
+      
+      // 显示操作结果
+      alert(newMarkedState ? '已标记题目' : '已取消标记');
+    } catch (error) {
+      console.error('标记题目失败:', error);
+      alert('操作失败，请稍后重试');
+    }
+  };
+  
+  // 收藏或取消收藏练习
+  const handleToggleBookmark = async () => {
+    if (!user || !exercise) return;
+    
+    try {
+      if (isExerciseBookmarked) {
+        // 取消收藏
+        await deleteBookmarkByExerciseId(exerciseId);
+        setIsExerciseBookmarked(false);
+        alert('已取消收藏');
+      } else {
+        // 添加收藏
+        await createBookmark({
+          exerciseId,
+          exerciseTitle: exercise.title,
+          tags: exercise.tags || []
+        });
+        setIsExerciseBookmarked(true);
+        alert('已收藏练习');
+      }
+    } catch (error) {
+      console.error('收藏操作失败:', error);
+      alert('操作失败，请稍后重试');
+    }
+  };
+  
+  // 加载本地存储的标记状态
+  useEffect(() => {
+    if (!currentQuestion) return;
+    
+    try {
+      const markedQuestionsStorage = JSON.parse(localStorage.getItem('markedQuestions') || '{}');
+      setMarkedQuestions(markedQuestionsStorage);
+    } catch (error) {
+      console.error('加载标记状态失败:', error);
+    }
+  }, [currentQuestion]);
+  
   // 渲染问题
   const renderQuestion = () => {
     if (!currentQuestion) return null;
@@ -621,11 +755,19 @@ export default function ExercisePage({ params }) {
           </Button>
           
           <Box className="flex items-center">
-            <IconButton color="primary" className="mr-2">
-              <BookmarkBorderIcon />
+            <IconButton 
+              color="primary" 
+              className="mr-2"
+              onClick={handleMarkQuestion}
+            >
+              {markedQuestions[currentQuestion.id] ? <BookmarkIcon /> : <BookmarkBorderIcon />}
             </IconButton>
-            <IconButton color="error" className="mr-2">
-              <Flag />
+            <IconButton 
+              color="error" 
+              className="mr-2"
+              onClick={handleToggleBookmark}
+            >
+              <Flag color={isExerciseBookmarked ? "error" : "action"} />
             </IconButton>
           </Box>
           
@@ -672,7 +814,7 @@ export default function ExercisePage({ params }) {
                 
                 {!loading && exercise && (
                   <Typography variant="h6" className="ml-4 font-bold">
-                    {exercise.title}
+                    {exercise.title} {markedOnly && <Chip label="仅标记题目" color="secondary" size="small" />}
                   </Typography>
                 )}
               </div>
