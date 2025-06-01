@@ -12,6 +12,19 @@ import { CircularProgress } from '@mui/material';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
+// 确保API URL正确构建
+const ensureCorrectApiUrl = (url, endpoint) => {
+  let baseUrl = url.replace(/\/+$/, '');
+  
+  // 处理可能的重复/api路径问题
+  let cleanEndpoint = endpoint;
+  if (baseUrl.endsWith('/api') && endpoint.startsWith('/api')) {
+    cleanEndpoint = endpoint.replace(/^\/api/, '');
+  }
+  
+  return `${baseUrl}${cleanEndpoint.startsWith('/') ? cleanEndpoint : '/' + cleanEndpoint}`;
+};
+
 export default function TeacherDashboard() {
   const router = useRouter();
   const dispatch = useDispatch();
@@ -29,6 +42,14 @@ export default function TeacherDashboard() {
     const fetchStats = async () => {
       if (!user) return;
       
+      // 确保用户是教师角色
+      if (user.role !== 'teacher') {
+        console.error('用户不是教师角色，无法获取教师仪表盘数据');
+        setError('权限不足，无法获取教师仪表盘数据');
+        setLoading(false);
+        return;
+      }
+      
       const token = localStorage.getItem('token');
       if (!token) return;
       
@@ -36,7 +57,12 @@ export default function TeacherDashboard() {
       setError(null);
       
       try {
-        const response = await axios.get(`${API_URL}/stats/dashboard`, {
+        console.log('正在请求教师仪表盘数据...');
+        // 使用ensureCorrectApiUrl确保API路径正确
+        const apiEndpoint = ensureCorrectApiUrl(API_URL, '/api/stats/dashboard');
+        console.log('请求API:', apiEndpoint);
+        
+        const response = await axios.get(apiEndpoint, {
           headers: { Authorization: `Bearer ${token}` }
         });
         
